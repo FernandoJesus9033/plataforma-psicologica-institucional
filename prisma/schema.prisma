@@ -1,0 +1,147 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      String    @default("STUDENT")
+  createdAt DateTime @default(now())
+  emailVerified DateTime?
+  verificationToken String?
+  
+  // Campos para recuperación de contraseña
+  resetToken        String?
+  resetTokenExpires DateTime?
+  
+  configuracion Configuracion?
+  
+  // Relación con actividades creadas (psicóloga)
+  createdActivities Activity[] @relation("PsychologistActivities")
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  matricula String?  // ✅ Matrícula del alumno (para identificar archivos)
+  notes     String?
+  createdAt DateTime @default(now())
+  
+  evaluations     Evaluation[]
+  appointments    Appointment[]
+  testResponses   TestResponse[]
+  testResults     TestResult?
+  activities      Activity[]
+}
+
+model Configuracion {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  notificaciones Boolean @default(true)
+  tema      String   @default("claro")
+  idioma    String   @default("es")
+  updatedAt DateTime @updatedAt
+}
+
+model Evaluation {
+  id        String   @id @default(cuid())
+  studentId String
+  score     Int
+  status    String
+  createdAt DateTime @default(now())
+  student   Student  @relation(fields: [studentId], references: [id])
+
+  @@map("evaluations")
+}
+
+model Appointment {
+  id        String   @id @default(cuid())
+  studentId String
+  date      DateTime
+  motivo    String?   // Motivo de la cita
+  status    String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED
+  createdAt DateTime @default(now())
+  student   Student  @relation(fields: [studentId], references: [id])
+
+  @@map("appointments")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("PENDING")
+  
+  // Calificación y feedback
+  calificacion Int?
+  comentario   String?
+  
+  // Archivo adjunto de la actividad (psicóloga)
+  fileUrl     String?
+  fileName    String?
+  fileType    String?
+  
+  // Entrega del alumno
+  entregaUrl     String?
+  entregaNombre  String?
+  entregaTipo    String?
+  entregadoEn    DateTime?
+  
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  psychologistId String
+  psychologist   User     @relation("PsychologistActivities", fields: [psychologistId], references: [id])
+}
+
+model TestQuestion {
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  text      String
+  scale     String
+  order     Int
+  createdAt DateTime @default(now())
+}
+
+model TestResponse {
+  id          String   @id @default(cuid())
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id])
+  groupId     Int
+  selectedPos String
+  selectedNeg String
+  createdAt   DateTime @default(now())
+}
+
+model TestResult {
+  id            String   @id @default(cuid())
+  studentId     String   @unique
+  student       Student  @relation(fields: [studentId], references: [id])
+  scores        String?  // JSON string: puntajes directos (PD)
+  percentiles   String?  // JSON string con percentiles (PC)
+  archivoUrl    String?  // URL del Excel subido por el alumno
+  archivoNombre String?  // Nombre original del archivo
+  completedAt   DateTime @default(now())
+}
+
+model TestBase {
+  id            String   @id @default(cuid())
+  archivoUrl    String   // URL del Excel base (para descargar)
+  archivoNombre String   // Nombre del archivo
+  activo        Boolean  @default(true) // Solo un test activo a la vez
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
