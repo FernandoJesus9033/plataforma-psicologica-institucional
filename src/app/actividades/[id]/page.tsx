@@ -32,13 +32,21 @@ export default function ActividadDetallePage({ params }: { params: Promise<{ id:
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch(`/api/actividades/${id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setActividad(data);
-        setComentario(data.comentario || "");
+      try {
+        const res = await fetch(`/api/actividades/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setActividad(data);
+          setComentario(data.comentario || "");
+        } else {
+          showToast("Error al cargar la actividad", "error");
+        }
+      } catch (error) {
+        console.error(error);
+        showToast("Error de conexión", "error");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     load();
   }, [id]);
@@ -68,7 +76,7 @@ export default function ActividadDetallePage({ params }: { params: Promise<{ id:
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("actividadId", actividad.id);
+    formData.append("activityId", actividad.id);
 
     try {
       const res = await fetch("/api/actividades/entregar", {
@@ -152,19 +160,28 @@ export default function ActividadDetallePage({ params }: { params: Promise<{ id:
 
   const handleGuardarFeedback = async () => {
     setSaving(true);
-    const res = await fetch(`/api/actividades/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ comentario, status: "COMPLETED" })
-    });
-    
-    if (res.ok) {
-      showToast("¡Retroalimentación guardada exitosamente!", "success");
-      setTimeout(() => router.refresh(), 1500);
-    } else {
-      showToast("Error al guardar la retroalimentación", "error");
+    try {
+      const res = await fetch(`/api/actividades/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          comentario
+        })
+      });
+
+      if (res.ok) {
+        showToast("¡Retroalimentación guardada exitosamente!", "success");
+        setTimeout(() => router.refresh(), 1500);
+      } else {
+        const error = await res.json();
+        showToast(error.error || "Error al guardar la retroalimentación", "error");
+      }
+    } catch (error) {
+      console.error(error);
+      showToast("Error de conexión", "error");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const confirmarFeedback = () => {
@@ -178,7 +195,7 @@ export default function ActividadDetallePage({ params }: { params: Promise<{ id:
 
   const styles = {
     container: { maxWidth: '800px', margin: '0 auto', padding: '2rem' },
-    header: { display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' },
+    header: { display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' as const },
     backButton: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: '#f1f5f9', borderRadius: '40px', textDecoration: 'none', color: '#475569' },
     title: { fontSize: '1.5rem', fontWeight: '600', color: '#1e293b', margin: 0 },
     card: { background: 'white', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', marginBottom: '1rem' },
@@ -276,7 +293,12 @@ export default function ActividadDetallePage({ params }: { params: Promise<{ id:
           </div>
           <div>
             <label style={styles.label}>Retroalimentación / Comentario</label>
-            <textarea style={styles.textarea} value={comentario} onChange={(e) => setComentario(e.target.value)} placeholder="Escribe aquí tu retroalimentación para el alumno..." />
+            <textarea
+              style={styles.textarea}
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder="Escribe aquí tu retroalimentación para el alumno..."
+            />
           </div>
           <button onClick={confirmarFeedback} style={styles.button} disabled={saving}>
             {saving ? "Guardando..." : "Guardar retroalimentación"}
@@ -292,8 +314,23 @@ export default function ActividadDetallePage({ params }: { params: Promise<{ id:
         </div>
       )}
 
-      <ModalConfirmacion isOpen={modalOpen} onClose={() => setModalOpen(false)} onConfirm={modalConfig.onConfirm} title={modalConfig.title} message={modalConfig.message} confirmText="Sí, continuar" cancelText="Cancelar" type="warning" />
-      <ToastNotificacion isOpen={toast.isOpen} onClose={() => setToast({ ...toast, isOpen: false })} message={toast.message} type={toast.type} />
+      <ModalConfirmacion
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onConfirm={modalConfig.onConfirm}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        confirmText="Sí, continuar"
+        cancelText="Cancelar"
+        type="warning"
+      />
+      
+      <ToastNotificacion
+        isOpen={toast.isOpen}
+        onClose={() => setToast({ ...toast, isOpen: false })}
+        message={toast.message}
+        type={toast.type}
+      />
     </div>
   );
 }

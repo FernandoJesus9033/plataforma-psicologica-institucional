@@ -55,12 +55,12 @@ export default function EvaluacionesPage() {
 
   const loadData = async () => {
     try {
-      const [evaluationsRes, studentsRes] = await Promise.all([
-        fetch("/api/evaluations"),
+      const [evaluacionesRes, studentsRes] = await Promise.all([
+        fetch("/api/eval"),
         fetch("/api/alumnos")
       ]);
-      if (!evaluationsRes.ok || !studentsRes.ok) return;
-      setEvaluations(await evaluationsRes.json());
+      if (!evaluacionesRes.ok || !studentsRes.ok) return;
+      setEvaluations(await evaluacionesRes.json());
       setStudents(await studentsRes.json());
     } catch (error) {
       console.error(error);
@@ -71,7 +71,7 @@ export default function EvaluacionesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch("/api/evaluations", {
+    const res = await fetch("/api/eval", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ studentId: selectedStudent, score: parseInt(score) })
@@ -93,7 +93,7 @@ export default function EvaluacionesPage() {
     if (!evaluacionAEliminar) return;
     setDeletingId(evaluacionAEliminar);
     try {
-      const res = await fetch(`/api/evaluations/${evaluacionAEliminar}`, { method: "DELETE" });
+      const res = await fetch(`/api/eval/${evaluacionAEliminar}`, { method: "DELETE" });
       if (res.ok) {
         loadData();
       } else {

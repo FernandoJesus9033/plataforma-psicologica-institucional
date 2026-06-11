@@ -5,15 +5,17 @@ import Link from "next/link";
 import Layout from "@/components/Layout";
 import { FaArrowLeft, FaStar, FaCalendarAlt, FaUserGraduate } from "react-icons/fa";
 
-export default async function DetalleEvaluacionPage({ params }: { params: { id: string } }) {
+export default async function DetalleEvaluacionPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession();
 
   if (!session) {
     redirect("/login");
   }
 
+  const { id } = await params;
+
   const evaluacion = await prisma.evaluation.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: { student: true }
   });
 

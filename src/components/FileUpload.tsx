@@ -31,9 +31,10 @@ export default function FileUpload({ onFileUploaded, initialFile }: FileUploadPr
       });
       const data = await res.json();
 
-      if (data.success) {
-        setFileInfo({ url: data.fileUrl, name: data.fileName });
-        onFileUploaded({ url: data.fileUrl, name: data.fileName, type: data.fileType });
+      // ✅ CAMBIO: en lugar de data.success, usamos data.url
+      if (data.url) {
+        setFileInfo({ url: data.url, name: data.name });
+        onFileUploaded({ url: data.url, name: data.name, type: data.type });
       } else {
         alert(data.error || "Error al subir archivo");
       }

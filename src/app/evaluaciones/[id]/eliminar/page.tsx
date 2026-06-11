@@ -1,27 +1,28 @@
 "use client";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import { FaArrowLeft, FaTrash } from "react-icons/fa";
 
-export default function EliminarEvaluacionPage({ params }: { params: { id: string } }) {
+export default function EliminarEvaluacionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params);
   const [studentName, setStudentName] = useState("");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    fetch(`/api/evaluations/${params.id}`)
+    fetch(`/api/evaluations/${id}`)
       .then(res => res.json())
       .then(data => {
         setStudentName(data.student.name);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [params.id]);
+  }, [id]);
 
   const handleDelete = async () => {
-    const res = await fetch(`/api/evaluations/${params.id}`, {
+    const res = await fetch(`/api/evaluations/${id}`, {
       method: "DELETE"
     });
 
@@ -128,7 +129,7 @@ export default function EliminarEvaluacionPage({ params }: { params: { id: strin
     <Layout session={null}>
       <div style={styles.container}>
         <div style={styles.header}>
-          <Link href={`/evaluaciones/${params.id}`} style={styles.backButton}>
+          <Link href={`/evaluaciones/${id}`} style={styles.backButton}>
             <FaArrowLeft /> Volver
           </Link>
         </div>
@@ -145,7 +146,7 @@ export default function EliminarEvaluacionPage({ params }: { params: { id: strin
             <button onClick={handleDelete} style={styles.deleteButton}>
               <FaTrash /> Sí, eliminar
             </button>
-            <Link href={`/evaluaciones/${params.id}`} style={styles.cancelButton}>
+            <Link href={`/evaluaciones/${id}`} style={styles.cancelButton}>
               Cancelar
             </Link>
           </div>

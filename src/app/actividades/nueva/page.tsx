@@ -14,6 +14,7 @@ export default function NuevaActividadPage() {
   const [dueDate, setDueDate] = useState("");
   const [fileData, setFileData] = useState({ url: "", name: "", type: "" });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function NuevaActividadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
-      const res = await fetch("/api/actividades", {
+      const res = await fetch("/api/actividades", {  // ✅ CAMBIADO
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -41,10 +43,14 @@ export default function NuevaActividadPage() {
           fileType: fileData.type
         })
       });
-      if (res.ok) router.push("/actividades");
-      else alert("Error al crear actividad");
+      const data = await res.json();
+      if (res.ok) {
+        router.push("/actividades");
+      } else {
+        setError(data.error || "Error al crear actividad");
+      }
     } catch (error) {
-      alert("Error de conexión");
+      setError("Error de conexión");
     } finally {
       setSaving(false);
     }
@@ -97,6 +103,7 @@ export default function NuevaActividadPage() {
             <label style={styles.label}><FaFileAlt /> Archivo adjunto</label>
             <FileUpload onFileUploaded={(file) => setFileData(file)} />
           </div>
+          {error && <div style={{ background: '#fee2e2', color: '#dc2626', padding: '0.5rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' }}>{error}</div>}
           <div style={styles.buttonGroup}>
             <Link href="/actividades" style={styles.cancelButton}>Cancelar</Link>
             <button type="submit" style={styles.submitButton} disabled={saving}>

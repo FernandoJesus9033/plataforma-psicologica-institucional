@@ -47,7 +47,6 @@ export async function POST(req: Request) {
     }
 
     const status = calculateStatus(score);
-    console.log("✅ Creando evaluación:", { studentId, score, status });
 
     const evaluation = await prisma.evaluation.create({
       data: { 
@@ -60,7 +59,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(evaluation, { status: 201 });
   } catch (error) {
-    console.error("❌ Error al crear evaluación:", error);
+    console.error("Error al crear evaluación:", error);
     return NextResponse.json({ error: "Error al crear evaluación: " + (error as Error).message }, { status: 500 });
   }
 }

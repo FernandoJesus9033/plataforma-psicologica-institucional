@@ -39,6 +39,19 @@ export async function POST(req: Request) {
       }
     });
 
+    // ✅ Si el rol es STUDENT, crear automáticamente el registro en Student
+    if (user.role === "STUDENT") {
+      await prisma.student.create({
+        data: {
+          email: user.email,
+          name: user.name || "Estudiante",
+          matricula: null,
+          notes: null
+        }
+      });
+      console.log("✅ Estudiante creado automáticamente en tabla Student:", user.email);
+    }
+
     return NextResponse.json(
       { message: "Usuario creado exitosamente", user: { email: user.email, name: user.name, role: user.role } },
       { status: 201 }
