@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const session = await getServerSession();
   if (!session) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
 
-  const user = await prisma.user.findUnique({ where: { email: session.user?.email } });
+  const user = await prisma.user.findUnique({ where: { email: session.user?.email ?? undefined } });
   if (user?.role !== "PSYCHOLOGIST") {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
