@@ -42,7 +42,7 @@ export default function NuevoAlumnoPage() {
     input: { width: '100%', padding: '0.8rem', borderRadius: '8px', border: `1px solid ${themeStyles.borderColor}`, background: themeStyles.inputBg, color: themeStyles.inputText, fontSize: '1rem' },
     buttonGroup: { display: 'flex', gap: '1rem', marginTop: '1.5rem' },
     saveButton: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', padding: '0.8rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '500', cursor: 'pointer' },
-    cancelButton: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', padding: '0.8rem', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '500', cursor: 'pointer', textDecoration: 'none', textAlign: 'center' },
+    cancelButton: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', padding: '0.8rem', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontSize: '1rem', fontWeight: '500', cursor: 'pointer', textDecoration: 'none', textAlign: 'center' as const },
     errorMessage: { background: '#ef444420', color: '#ef4444', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem' },
   };
 
