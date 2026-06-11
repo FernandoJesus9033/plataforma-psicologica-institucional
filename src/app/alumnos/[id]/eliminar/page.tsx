@@ -50,13 +50,13 @@ export default function EliminarAlumnoPage({ params }: { params: Promise<{ id: s
     header: { display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' },
     backButton: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: '#f1f5f9', borderRadius: '10px', textDecoration: 'none', color: '#475569' },
     title: { fontSize: '1.5rem', fontWeight: '600', color: '#2c3e50', margin: 0 },
-    card: { background: 'white', borderRadius: '20px', padding: '2rem', textAlign: 'center', border: '1px solid #e2e8f0' },
+    card: { background: 'white', borderRadius: '20px', padding: '2rem', textAlign: 'center' as const, border: '1px solid #e2e8f0' },
     icon: { fontSize: '4rem', color: '#ef4444', marginBottom: '1rem' },
     studentName: { fontWeight: 'bold', color: '#ef4444' },
     buttonGroup: { display: 'flex', gap: '1rem', marginTop: '1.5rem' },
     deleteButton: { flex: 1, background: '#ef4444', color: 'white', border: 'none', padding: '0.8rem', borderRadius: '8px', cursor: 'pointer' },
-    cancelButton: { flex: 1, background: '#e2e8f0', color: '#475569', border: 'none', padding: '0.8rem', borderRadius: '8px', cursor: 'pointer', textDecoration: 'none', textAlign: 'center' },
-    errorMessage: { background: '#fee2e2', color: '#dc2626', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem' },
+    cancelButton: { flex: 1, background: '#e2e8f0', color: '#475569', border: 'none', padding: '0.8rem', borderRadius: '8px', cursor: 'pointer', textDecoration: 'none', textAlign: 'center' as const },
+    errorMessage: { background: '#fee2e2', color: '#dc2626', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' as const },
   };
 
   if (loading) {
