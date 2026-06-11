@@ -163,7 +163,7 @@ export default async function HistorialAlumnoPage({ params }: { params: Promise<
   };
 
   return (
-    <Layout session={session}>
+    <Layout>
       <div style={styles.container}>
         <div style={styles.header}>
           <Link href="/alumnos" style={styles.backButton}>
