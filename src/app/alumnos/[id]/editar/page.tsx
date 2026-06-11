@@ -67,7 +67,7 @@ export default function EditarAlumnoPage({ params }: { params: Promise<{ id: str
     errorMessage: { background: '#fee2e2', color: '#dc2626', padding: '0.8rem', borderRadius: '8px', marginBottom: '1rem' },
     buttonGroup: { display: 'flex', gap: '1rem', marginTop: '1.5rem' },
     saveButton: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', padding: '0.75rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer' },
-    cancelButton: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', padding: '0.75rem', background: '#e2e8f0', color: '#475569', textDecoration: 'none', borderRadius: '10px', textAlign: 'center' }
+    cancelButton: { flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center', padding: '0.75rem', background: '#e2e8f0', color: '#475569', textDecoration: 'none', borderRadius: '10px', textAlign: 'center' as const }
   };
 
   if (loading) {
