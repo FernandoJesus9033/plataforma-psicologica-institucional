@@ -1,11 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FaLock, FaArrowRight, FaHome, FaArrowLeft, FaSpinner, FaEye, FaEyeSlash } from "react-icons/fa";
 
-export default function ResetPasswordPage() {
+// Componente interno que usa useSearchParams
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -299,5 +301,14 @@ export default function ResetPasswordPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+// Componente principal con Suspense
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div style={{ textAlign: 'center', padding: '2rem' }}>Cargando...</div>}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
