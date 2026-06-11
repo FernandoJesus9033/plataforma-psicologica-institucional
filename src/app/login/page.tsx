@@ -1,12 +1,14 @@
 "use client";
 
+import { Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FaEnvelope, FaLock, FaArrowRight, FaHome, FaBrain } from "react-icons/fa";
 
-export default function Login() {
+// Componente interno que usa useSearchParams
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -234,5 +236,14 @@ export default function Login() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Componente principal con Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
