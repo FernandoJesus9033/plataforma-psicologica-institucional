@@ -30,7 +30,7 @@ export default function NuevaActividadPage() {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch("/api/actividades", {  // ✅ CAMBIADO
+      const res = await fetch("/api/actividades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,7 +68,7 @@ export default function NuevaActividadPage() {
     textarea: { width: '100%', padding: '0.6rem 0.8rem', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '0.9rem', resize: 'vertical' as const, minHeight: '80px' },
     select: { width: '100%', padding: '0.6rem 0.8rem', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '0.9rem' },
     buttonGroup: { display: 'flex', gap: '1rem', marginTop: '1.5rem' },
-    cancelButton: { flex: 1, padding: '0.7rem', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '40px', textAlign: 'center', textDecoration: 'none' },
+    cancelButton: { flex: 1, padding: '0.7rem', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '40px', textAlign: 'center' as const, textDecoration: 'none' },
     submitButton: { flex: 1, padding: '0.7rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '40px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }
   };
 
