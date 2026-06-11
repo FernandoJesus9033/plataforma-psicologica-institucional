@@ -12,7 +12,7 @@ export async function PUT(
   }
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
+    where: { email: session.user?.email ?? undefined }
   });
 
   if (user?.role !== "PSYCHOLOGIST") {
@@ -46,7 +46,7 @@ export async function DELETE(
   }
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
+    where: { email: session.user?.email ?? undefined }
   });
 
   const { id } = await params;
