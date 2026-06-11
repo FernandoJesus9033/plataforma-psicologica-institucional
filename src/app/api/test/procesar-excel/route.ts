@@ -41,9 +41,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo se permiten archivos .xlsx" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(uint8Array);
     
     const worksheet = workbook.getWorksheet("APLICACION Y CONTEO");
     if (!worksheet) {
