@@ -34,7 +34,7 @@ export async function GET() {
 
   let scores = {};
   try {
-    scores = JSON.parse(testResult.scores);
+    scores = JSON.parse(testResult.scores ?? '{}');
   } catch (e) {
     console.error("Error parsing scores:", e);
   }
