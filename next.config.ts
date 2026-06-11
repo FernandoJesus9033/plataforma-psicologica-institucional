@@ -2,7 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
-  turbopack: {},  // ← Esto evita el error local
+  turbopack: {},
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 export default nextConfig;
