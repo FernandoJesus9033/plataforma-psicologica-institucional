@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const { currentPassword, newPassword } = await req.json();
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
+    where: { email: session.user?.email ?? undefined }
   });
 
   if (!user) {
