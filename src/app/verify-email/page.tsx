@@ -1,9 +1,12 @@
 "use client";
+
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function VerifyEmailPage() {
+// Componente interno que usa useSearchParams
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -87,5 +90,14 @@ export default function VerifyEmailPage() {
         </>
       )}
     </div>
+  );
+}
+
+// Componente principal con Suspense
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<div style={{ textAlign: 'center', padding: '2rem' }}>Cargando...</div>}>
+      <VerifyEmailContent />
+    </Suspense>
   );
 }
