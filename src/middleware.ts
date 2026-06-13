@@ -3,9 +3,27 @@ import { NextResponse } from "next/server";
 
 export default withAuth(
   function middleware(req) {
+    // ✅ Bloquear APIs no migradas a Netlify Blobs
+    const blockedApis = [
+      '/api/actividades',
+      '/api/citas',
+      '/api/alumno/actual',
+      '/api/test/base',
+      '/api/evaluations',
+      '/api/actividades/upload'
+    ];
+    
+    const pathname = req.nextUrl.pathname;
+    
+    if (blockedApis.some(api => pathname.startsWith(api))) {
+      return NextResponse.json(
+        { error: 'Funcionalidad en desarrollo. Próximamente disponible.' },
+        { status: 503 }
+      );
+    }
+    
     const token = req.nextauth.token;
     const isAuth = !!token;
-    const pathname = req.nextUrl.pathname;
     
     const isPublicPage = pathname === "/";
     const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/register");

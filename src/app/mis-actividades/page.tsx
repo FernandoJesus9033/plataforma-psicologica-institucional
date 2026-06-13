@@ -8,11 +8,20 @@ export default function MisActividadesPage() {
   const router = useRouter();
   const [actividades, setActividades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch("/api/actividades");
-      if (res.ok) setActividades(await res.json());
+      try {
+        const res = await fetch("/api/actividades");
+        if (res.ok) {
+          setActividades(await res.json());
+        } else if (res.status === 503) {
+          setError(true);
+        }
+      } catch (err) {
+        setError(true);
+      }
       setLoading(false);
     };
     load();
@@ -45,10 +54,23 @@ export default function MisActividadesPage() {
     description: { fontSize: '0.85rem', color: '#475569', marginBottom: '0.75rem', lineHeight: '1.4' },
     fileLink: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.75rem', color: '#4f46e5', textDecoration: 'none', background: '#eef2ff', padding: '0.25rem 0.75rem', borderRadius: '30px', border: 'none', cursor: 'pointer' },
     feedbackBadge: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: '#4f46e5', background: '#eef2ff', padding: '0.2rem 0.6rem', borderRadius: '30px', marginTop: '0.5rem' },
-    emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#64748b' }
+    emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#64748b' },
+    maintenanceCard: { background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', padding: '2rem', textAlign: 'center' as const, maxWidth: '500px', margin: '0 auto' }
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
+  
+  if (error) {
+    return (
+      <div style={styles.container}>
+        <h1 style={styles.title}>📋 Mis Actividades</h1>
+        <div style={styles.maintenanceCard}>
+          <p style={{ fontSize: '1rem', color: '#64748b', marginBottom: '1rem' }}>Próximamente disponible.</p>
+          <p style={{ fontSize: '0.85rem', color: '#64748b' }}>⚠️ En proceso de migración a Netlify Blobs.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>
@@ -83,14 +105,12 @@ export default function MisActividadesPage() {
                   </button>
                 )}
 
-                {/* Mostrar si tiene retroalimentación */}
                 {act.comentario && (
                   <div style={styles.feedbackBadge}>
                     <FaComment /> Tiene retroalimentación
                   </div>
                 )}
 
-                {/* Mostrar calificación si está calificada */}
                 {act.status === "CALIFICADA" && act.calificacion !== null && (
                   <div style={{ ...styles.feedbackBadge, background: '#d1fae5', color: '#10b981' }}>
                     <FaStar /> Calificación: {act.calificacion}/100

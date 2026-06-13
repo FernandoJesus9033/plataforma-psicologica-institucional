@@ -19,11 +19,12 @@ export default function BotonDescargarPDF({ expedienteRef, nombreAlumno }: Boton
 
     setDownloading(true);
     try {
-      // ✅ Importación dinámica de las librerías solo cuando se hace clic
-      const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf')
-      ]);
+      // ✅ Forzar las versiones de navegador (ESM) directamente
+      const html2canvasModule = await import('html2canvas');
+      const jsPDFModule = await import('jspdf');
+      
+      const html2canvas = html2canvasModule.default;
+      const jsPDF = jsPDFModule.default;
 
       const canvas = await html2canvas(expedienteRef.current, {
         scale: 2,

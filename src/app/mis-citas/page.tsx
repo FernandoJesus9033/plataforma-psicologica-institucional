@@ -13,6 +13,7 @@ export default function MisCitasPage() {
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
+  const [apiError, setApiError] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -34,9 +35,12 @@ export default function MisCitasPage() {
       if (res.ok) {
         const data = await res.json();
         setCitas(data);
+      } else if (res.status === 503 || res.status === 500) {
+        setApiError(true);
       }
     } catch (error) {
       console.error(error);
+      setApiError(true);
     } finally {
       setLoading(false);
     }
@@ -78,6 +82,8 @@ export default function MisCitasPage() {
         setMotivo("");
         cargarCitas();
         setTimeout(() => setExito(""), 3000);
+      } else if (res.status === 503 || res.status === 500) {
+        setApiError(true);
       } else {
         const data = await res.json();
         setError(data.error || "Error al solicitar cita");
@@ -127,8 +133,23 @@ export default function MisCitasPage() {
     citaFecha: { fontSize: '0.9rem', fontWeight: '600', color: '#1e293b' },
     citaMotivo: { fontSize: '0.8rem', color: '#64748b' },
     cancelButton: { background: '#fee2e2', color: '#ef4444', border: 'none', padding: '0.4rem 1rem', borderRadius: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem' },
-    emptyState: { textAlign: 'center' as const, padding: '3rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' }
+    emptyState: { textAlign: 'center' as const, padding: '3rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' },
+    maintenanceCard: { background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', padding: '2rem', textAlign: 'center' as const, maxWidth: '500px', margin: '0 auto' },
+    maintenanceMessage: { fontSize: '1rem', color: '#64748b', marginBottom: '0.5rem' }
   };
+
+  if (apiError) {
+    return (
+      <div style={styles.container}>
+        <h1 style={styles.title}>📅 Mis Citas</h1>
+        <div style={styles.maintenanceCard}>
+          <FaCalendarAlt style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem' }} />
+          <p style={styles.maintenanceMessage}>Próximamente disponible.</p>
+          <p style={{ fontSize: '0.8rem', color: '#64748b' }}>⚠️ En proceso de migración a Netlify Blobs.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
@@ -138,7 +159,6 @@ export default function MisCitasPage() {
     <div style={styles.container}>
       <h1 style={styles.title}>📅 Mis Citas</h1>
 
-      {/* Formulario para solicitar cita */}
       <div style={styles.formCard}>
         <h2 style={styles.formTitle}>Solicitar nueva cita</h2>
         {error && <div style={styles.errorMessage}>{error}</div>}
@@ -183,7 +203,6 @@ export default function MisCitasPage() {
         </form>
       </div>
 
-      {/* Lista de citas */}
       <h2 style={{ fontSize: '1.2rem', fontWeight: '600', color: '#1e293b', marginBottom: '1rem' }}>Mis citas programadas</h2>
       
       {citas.length === 0 ? (
