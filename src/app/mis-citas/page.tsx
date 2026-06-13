@@ -1,11 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { FaCalendarAlt, FaClock, FaComment, FaPaperPlane, FaTrash } from "react-icons/fa";
+import { FaCalendarAlt, FaClock, FaComment, FaPaperPlane, FaTrash, FaCheckCircle } from "react-icons/fa";
+
+interface Cita {
+  id: string;
+  fecha: string;
+  hora: string;
+  motivo: string;
+  estado: string;
+}
 
 export default function MisCitasPage() {
-  const [citas, setCitas] = useState<any[]>([]);
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [citas, setCitas] = useState<Cita[]>([]);
   const [loading, setLoading] = useState(true);
   const [solicitando, setSolicitando] = useState(false);
   const [fecha, setFecha] = useState("");
@@ -13,21 +24,15 @@ export default function MisCitasPage() {
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState("");
   const [exito, setExito] = useState("");
-  const [apiError, setApiError] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
-    const verificarSesion = async () => {
-      const res = await fetch("/api/auth/session");
-      const data = await res.json();
-      if (!data?.user) {
-        router.push("/login");
-        return;
-      }
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+    if (session?.user) {
       cargarCitas();
-    };
-    verificarSesion();
-  }, [router]);
+    }
+  }, [status, session, router]);
 
   const cargarCitas = async () => {
     try {
@@ -35,12 +40,9 @@ export default function MisCitasPage() {
       if (res.ok) {
         const data = await res.json();
         setCitas(data);
-      } else if (res.status === 503 || res.status === 500) {
-        setApiError(true);
       }
     } catch (error) {
       console.error(error);
-      setApiError(true);
     } finally {
       setLoading(false);
     }
@@ -82,8 +84,6 @@ export default function MisCitasPage() {
         setMotivo("");
         cargarCitas();
         setTimeout(() => setExito(""), 3000);
-      } else if (res.status === 503 || res.status === 500) {
-        setApiError(true);
       } else {
         const data = await res.json();
         setError(data.error || "Error al solicitar cita");
@@ -114,10 +114,19 @@ export default function MisCitasPage() {
     }
   };
 
+  const getEstadoInfo = (estado: string) => {
+    switch (estado) {
+      case "CONFIRMADA": return { text: "Confirmada", color: "#10b981", bg: "#d1fae5" };
+      case "CANCELADA": return { text: "Cancelada", color: "#ef4444", bg: "#fee2e2" };
+      case "COMPLETADA": return { text: "Completada", color: "#8b5cf6", bg: "#ede9fe" };
+      default: return { text: "Pendiente", color: "#f59e0b", bg: "#fef3c7" };
+    }
+  };
+
   const styles = {
     container: { maxWidth: '1000px', margin: '0 auto', padding: '2rem' },
     title: { fontSize: '1.8rem', fontWeight: '600', color: '#1e293b', marginBottom: '2rem' },
-    formCard: { background: 'white', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', marginBottom: '2rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
+    formCard: { background: 'white', borderRadius: '20px', padding: '1.5rem', border: '1px solid #e2e8f0', marginBottom: '2rem' },
     formTitle: { fontSize: '1.2rem', fontWeight: '600', color: '#1e293b', marginBottom: '1rem' },
     formRow: { display: 'flex', gap: '1rem', flexWrap: 'wrap' as const, marginBottom: '1rem' },
     formGroup: { flex: 1, minWidth: '200px' },
@@ -134,24 +143,13 @@ export default function MisCitasPage() {
     citaMotivo: { fontSize: '0.8rem', color: '#64748b' },
     cancelButton: { background: '#fee2e2', color: '#ef4444', border: 'none', padding: '0.4rem 1rem', borderRadius: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem' },
     emptyState: { textAlign: 'center' as const, padding: '3rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' },
-    maintenanceCard: { background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', padding: '2rem', textAlign: 'center' as const, maxWidth: '500px', margin: '0 auto' },
-    maintenanceMessage: { fontSize: '1rem', color: '#64748b', marginBottom: '0.5rem' }
+    estadoBadge: (estado: string) => {
+      const info = getEstadoInfo(estado);
+      return { display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '30px', fontSize: '0.7rem', fontWeight: '500', background: info.bg, color: info.color };
+    }
   };
 
-  if (apiError) {
-    return (
-      <div style={styles.container}>
-        <h1 style={styles.title}>📅 Mis Citas</h1>
-        <div style={styles.maintenanceCard}>
-          <FaCalendarAlt style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem' }} />
-          <p style={styles.maintenanceMessage}>Próximamente disponible.</p>
-          <p style={{ fontSize: '0.8rem', color: '#64748b' }}>⚠️ En proceso de migración a Netlify Blobs.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
+  if (status === "loading" || loading) {
     return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
   }
 
@@ -218,13 +216,16 @@ export default function MisCitasPage() {
               <div style={styles.citaInfo}>
                 <div style={styles.citaFecha}>
                   <FaCalendarAlt style={{ display: 'inline', marginRight: '0.3rem', fontSize: '0.8rem' }} />
-                  {new Date(cita.date).toLocaleDateString()} - {new Date(cita.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {cita.fecha} - {cita.hora}
+                  <span style={styles.estadoBadge(cita.estado)}>{getEstadoInfo(cita.estado).text}</span>
                 </div>
                 {cita.motivo && <div style={styles.citaMotivo}><FaComment style={{ display: 'inline', marginRight: '0.3rem', fontSize: '0.7rem' }} /> {cita.motivo}</div>}
               </div>
-              <button onClick={() => handleCancelar(cita.id)} style={styles.cancelButton}>
-                <FaTrash /> Cancelar
-              </button>
+              {cita.estado !== "CANCELADA" && (
+                <button onClick={() => handleCancelar(cita.id)} style={styles.cancelButton}>
+                  <FaTrash /> Cancelar
+                </button>
+              )}
             </div>
           ))}
         </div>
