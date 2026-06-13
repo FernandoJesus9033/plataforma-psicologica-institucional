@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import { useTheme } from "@/contexts/ThemeContext";
+import BotonDescargarPDF from "@/components/BotonDescargarPDF";
 import { 
-  FaArrowLeft, FaDownload, FaUserGraduate, FaEnvelope, FaCalendarAlt, 
-  FaChartLine, FaClipboardList, FaTasks, FaCheckCircle, FaClock, FaStar,
-  FaBrain, FaHeartbeat
+  FaArrowLeft, FaUserGraduate, FaEnvelope, FaCalendarAlt, 
+  FaChartLine, FaClipboardList, FaTasks, FaBrain, FaHeartbeat
 } from "react-icons/fa";
 import {
   BarChart,
@@ -25,10 +25,6 @@ import {
   Radar,
   Cell
 } from "recharts";
-
-// Importación dinámica para jsPDF y html2canvas (solo cliente)
-let jsPDF: any = null;
-let html2canvas: any = null;
 
 interface Alumno {
   id: string;
@@ -98,23 +94,9 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const [testResults, setTestResults] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<any>(null);
-  const [downloading, setDownloading] = useState(false);
   const { themeStyles } = useTheme();
   const router = useRouter();
   const expedienteRef = useRef<HTMLDivElement>(null);
-
-  // Cargar librerías solo en el cliente
-  useEffect(() => {
-    const loadLibraries = async () => {
-      const [jspdfModule, html2canvasModule] = await Promise.all([
-        import('jspdf'),
-        import('html2canvas')
-      ]);
-      jsPDF = jspdfModule.default;
-      html2canvas = html2canvasModule.default;
-    };
-    loadLibraries();
-  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -154,37 +136,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
     loadData();
   }, [id, router]);
 
-  const downloadPDF = async () => {
-    if (!expedienteRef.current || !jsPDF || !html2canvas) {
-      alert("Las librerías aún no están cargadas. Intenta de nuevo.");
-      return;
-    }
-    setDownloading(true);
-    try {
-      const canvas = await html2canvas(expedienteRef.current, { scale: 2, logging: false, useCORS: true });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF("p", "mm", "a4");
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdf.internal.pageSize.getHeight();
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pdf.internal.pageSize.getHeight();
-      }
-      pdf.save(`expediente_${alumno?.name || "alumno"}.pdf`);
-    } catch (error) {
-      console.error("Error al generar PDF:", error);
-      alert("Error al generar el PDF");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   // Preparar datos para gráficas
   const testScores = testResults ? [
     { escala: "Ascendencia", valor: testResults.A || 0, color: "#4a90c4", percentil: getPercentile("A", testResults.A || 0) },
@@ -212,7 +163,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap' as const, gap: '1rem' },
     backButton: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', background: '#f1f5f9', borderRadius: '10px', textDecoration: 'none', color: '#475569' },
     title: { fontSize: '1.8rem', fontWeight: 'bold', color: themeStyles.textColor, display: 'flex', alignItems: 'center', gap: '0.5rem' },
-    downloadButton: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1.5rem', background: '#4a90c4', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '500' },
     card: { background: themeStyles.cardBg, borderRadius: '20px', padding: '1.5rem', marginBottom: '2rem', border: `1px solid ${themeStyles.borderColor}`, boxShadow: themeStyles.shadow },
     cardTitle: { fontSize: '1.2rem', fontWeight: '600', color: themeStyles.textColor, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' },
     infoGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' },
@@ -272,9 +222,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           <h1 style={styles.title}>
             <FaUserGraduate /> Expediente del Alumno
           </h1>
-          <button onClick={downloadPDF} style={styles.downloadButton} disabled={downloading}>
-            <FaDownload /> {downloading ? "Generando PDF..." : "Descargar PDF"}
-          </button>
+          <BotonDescargarPDF expedienteRef={expedienteRef} nombreAlumno={alumno?.name || "alumno"} />
         </div>
 
         <div style={styles.card}>
@@ -347,7 +295,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </div>
         )}
 
-        {/* ✅ Tabla de evaluaciones corregida */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaClipboardList /> Evaluaciones Psicológicas</h2>
           {evaluaciones.length === 0 ? (
@@ -378,7 +325,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           )}
         </div>
 
-        {/* ✅ Tabla de actividades corregida */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaTasks /> Actividades Asignadas</h2>
           {actividades.length === 0 ? (
@@ -411,7 +357,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           )}
         </div>
 
-        {/* ✅ Tabla de citas corregida */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaCalendarAlt /> Historial de Citas</h2>
           {citas.length === 0 ? (
