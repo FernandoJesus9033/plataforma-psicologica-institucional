@@ -2,9 +2,6 @@
   command = "npx prisma generate && next build"
   publish = ".next"
 
-[build.environment]
-  DATABASE_URL = "file:./dev.db"
-
 [[redirects]]
   from = "/api/*"
   to = "/api/:splat"
