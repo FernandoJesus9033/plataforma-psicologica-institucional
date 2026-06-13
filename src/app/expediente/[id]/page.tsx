@@ -25,9 +25,12 @@ import {
   Radar,
   Cell
 } from "recharts";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
+// ✅ Importación dinámica para jsPDF y html2canvas (solo cliente)
+let jsPDF: any = null;
+let html2canvas: any = null;
+
+// ... (el resto de tus interfaces y funciones helper quedan igual)
 interface Alumno {
   id: string;
   name: string;
@@ -57,7 +60,6 @@ interface Appointment {
   date: string;
 }
 
-// Tabla de percentiles según el manual Gordon P-IPG
 const percentilesTable: Record<string, Record<number, number>> = {
   A: { 28: 99, 27: 98, 26: 96, 25: 93, 24: 89, 23: 84, 22: 79, 21: 73, 20: 67, 19: 61, 18: 54, 17: 47, 16: 41, 15: 35, 14: 29, 13: 23, 12: 18, 11: 14, 10: 11, 9: 8, 8: 5, 7: 3, 6: 2, 5: 1, 4: 0 },
   R: { 28: 99, 27: 98, 26: 96, 25: 93, 24: 89, 23: 84, 22: 79, 21: 73, 20: 67, 19: 61, 18: 54, 17: 47, 16: 41, 15: 35, 14: 29, 13: 23, 12: 18, 11: 14, 10: 11, 9: 8, 8: 5, 7: 3, 6: 2, 5: 1, 4: 0 },
@@ -102,6 +104,19 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const expedienteRef = useRef<HTMLDivElement>(null);
 
+  // Cargar librerías solo en el cliente
+  useEffect(() => {
+    const loadLibraries = async () => {
+      const [jspdfModule, html2canvasModule] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas')
+      ]);
+      jsPDF = jspdfModule.default;
+      html2canvas = html2canvasModule.default;
+    };
+    loadLibraries();
+  }, []);
+
   useEffect(() => {
     const loadData = async () => {
       const sessionRes = await fetch("/api/auth/session");
@@ -141,7 +156,10 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   }, [id, router]);
 
   const downloadPDF = async () => {
-    if (!expedienteRef.current) return;
+    if (!expedienteRef.current || !jsPDF || !html2canvas) {
+      alert("Las librerías aún no están cargadas. Intenta de nuevo.");
+      return;
+    }
     setDownloading(true);
     try {
       const canvas = await html2canvas(expedienteRef.current, { scale: 2, logging: false, useCORS: true });
@@ -248,7 +266,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
   return (
     <Layout session={session}>
       <div ref={expedienteRef} style={styles.container}>
-        {/* Encabezado */}
         <div style={styles.header}>
           <Link href="/alumnos" style={styles.backButton}>
             <FaArrowLeft /> Volver a Alumnos
@@ -261,7 +278,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </button>
         </div>
 
-        {/* Datos personales */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaUserGraduate /> Datos Personales</h2>
           <div style={styles.infoGrid}>
@@ -271,7 +287,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {/* Resumen de actividad */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaChartLine /> Resumen de Actividad</h2>
           <div style={styles.statsGrid}>
@@ -282,12 +297,9 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {/* Resultados del test de personalidad */}
         {testResults && (
           <div style={styles.card}>
             <h2 style={styles.cardTitle}><FaBrain /> Perfil de Personalidad (Gordon P-IPG)</h2>
-            
-            {/* Gráfica de radar */}
             <div style={styles.radarContainer}>
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
@@ -299,8 +311,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
                 </RadarChart>
               </ResponsiveContainer>
             </div>
-
-            {/* Gráfica de barras con percentiles */}
             <div style={styles.chartContainer}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={testScores} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
@@ -315,8 +325,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
                 </BarChart>
               </ResponsiveContainer>
             </div>
-
-            {/* Tabla de puntajes con percentiles e interpretación */}
             <div style={styles.scoreGrid}>
               {testScores.map(score => {
                 const interp = getInterpretation(score.percentil);
@@ -340,7 +348,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </div>
         )}
 
-        {/* Historial de evaluaciones */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaClipboardList /> Evaluaciones Psicológicas</h2>
           {evaluaciones.length === 0 ? (
@@ -354,14 +361,13 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
                     <td style={styles.td}>{new Date(e.createdAt).toLocaleDateString()}</td>
                     <td style={styles.td}>{e.score}</td>
                     <td style={styles.td}><span style={styles.statusBadge(e.status)}>{e.status === "GREEN" ? "Estable" : e.status === "YELLOW" ? "En observación" : "Requiere atención"}</span></td>
-                  </tr>
+                  </table>
                 ))}
               </tbody>
             </table>
           )}
         </div>
 
-        {/* Actividades asignadas */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaTasks /> Actividades Asignadas</h2>
           {actividades.length === 0 ? (
@@ -383,7 +389,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           )}
         </div>
 
-        {/* Citas */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaCalendarAlt /> Historial de Citas</h2>
           {citas.length === 0 ? (
@@ -403,7 +408,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           )}
         </div>
 
-        {/* Notas privadas */}
         {alumno.notes && (
           <div style={styles.card}>
             <h2 style={styles.cardTitle}><FaHeartbeat /> Notas Privadas</h2>
