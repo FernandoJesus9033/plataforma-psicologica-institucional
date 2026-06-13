@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getStore } from "@netlify/blobs";
 import bcrypt from "bcrypt";
 
 export async function POST(req: Request) {
@@ -14,11 +14,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verificar si el usuario ya existe
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    });
+    // Conectar al almacenamiento de Netlify
+    const store = getStore("usuarios");
 
+    // Verificar si el usuario ya existe
+    const existingUser = await store.get(email);
     if (existingUser) {
       return NextResponse.json(
         { error: "El usuario ya existe" },
@@ -30,30 +30,33 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Crear usuario
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: name || null,
-        role: role || "STUDENT"
-      }
-    });
+    const userData = {
+      id: crypto.randomUUID(),
+      email,
+      password: hashedPassword,
+      name: name || null,
+      role: role || "STUDENT",
+      createdAt: new Date().toISOString(),
+    };
+
+    await store.setJSON(email, userData);
 
     // ✅ Si el rol es STUDENT, crear automáticamente el registro en Student
-    if (user.role === "STUDENT") {
-      await prisma.student.create({
-        data: {
-          email: user.email,
-          name: user.name || "Estudiante",
-          matricula: null,
-          notes: null
-        }
-      });
-      console.log("✅ Estudiante creado automáticamente en tabla Student:", user.email);
+    if (userData.role === "STUDENT") {
+      const studentData = {
+        id: crypto.randomUUID(),
+        email: userData.email,
+        name: userData.name || "Estudiante",
+        matricula: null,
+        notes: null,
+        createdAt: new Date().toISOString(),
+      };
+      await store.setJSON(`student_${email}`, studentData);
+      console.log("✅ Estudiante creado automáticamente en Netlify Blobs:", userData.email);
     }
 
     return NextResponse.json(
-      { message: "Usuario creado exitosamente", user: { email: user.email, name: user.name, role: user.role } },
+      { message: "Usuario creado exitosamente", user: { email: userData.email, name: userData.name, role: userData.role } },
       { status: 201 }
     );
   } catch (error) {

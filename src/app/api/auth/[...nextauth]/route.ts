@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
+import { getStore } from "@netlify/blobs";
 import bcrypt from "bcrypt";
 
 const handler = NextAuth({
@@ -14,13 +14,14 @@ const handler = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        });
-
-        if (!user) return null;
-
+        const store = getStore("usuarios");
+        const userData = await store.get(credentials.email);
+        
+        if (!userData) return null;
+        
+        const user = JSON.parse(userData);
         const passwordMatch = await bcrypt.compare(credentials.password, user.password);
+        
         if (!passwordMatch) return null;
 
         return {
@@ -36,14 +37,14 @@ const handler = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role ?? undefined;
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session?.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string | undefined;
+        session.user.role = token.role as string;
       }
       return session;
     }
