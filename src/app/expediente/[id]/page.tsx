@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import { useTheme } from "@/contexts/ThemeContext";
-import BotonDescargarPDF from "@/components/BotonDescargarPDF";
+// import BotonDescargarPDF from "@/components/BotonDescargarPDF";  // ❌ COMENTADO TEMPORALMENTE
 import { 
   FaArrowLeft, FaUserGraduate, FaEnvelope, FaCalendarAlt, 
   FaChartLine, FaClipboardList, FaTasks, FaBrain, FaHeartbeat
@@ -222,7 +222,8 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           <h1 style={styles.title}>
             <FaUserGraduate /> Expediente del Alumno
           </h1>
-          <BotonDescargarPDF expedienteRef={expedienteRef} nombreAlumno={alumno?.name || "alumno"} />
+          {/* ❌ Botón de PDF deshabilitado temporalmente por error de build */}
+          {/* <BotonDescargarPDF expedienteRef={expedienteRef} nombreAlumno={alumno?.name || "alumno"} /> */}
         </div>
 
         <div style={styles.card}>
