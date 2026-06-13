@@ -86,7 +86,7 @@ export default function MisEvaluacionesPage() {
                       {e.status === "GREEN" ? "Estable" : e.status === "YELLOW" ? "En observación" : "Requiere atención"}
                     </span>
                   </td>
-                </table>
+                </tr>
               ))}
             </tbody>
           </table>
