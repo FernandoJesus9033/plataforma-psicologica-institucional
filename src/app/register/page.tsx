@@ -34,7 +34,8 @@ export default function Register() {
     }
 
     try {
-      const res = await fetch("/api/auth/register", {
+      // ✅ CAMBIO: /api/auth/register → /api/register
+      const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password, role }),
