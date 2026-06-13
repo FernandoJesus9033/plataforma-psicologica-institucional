@@ -1,114 +1,47 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getStore } from "@netlify/blobs";
 import LogoutButton from "@/components/LogoutButton";
 import { 
   FaTasks, FaClipboardList, FaCalendarAlt, FaCog, FaArrowRight, FaFileExcel, FaUsers
 } from "react-icons/fa";
 
-export default async function Dashboard() {
-  const session = await getServerSession();
-  if (!session) redirect("/login");
+export default function DashboardPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const [loading, setLoading] = useState(true);
 
-  // ✅ Obtener datos del usuario desde Netlify Blobs
-  const store = getStore("usuarios");
-  const userData = await store.get(session.user?.email as string);
-  
-  if (!userData) {
-    redirect("/login");
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+    
+    if (session?.user) {
+      setUserRole(session.user.role || null);
+      setUserName(session.user.name || session.user.email || "");
+      setLoading(false);
+    }
+  }, [status, session, router]);
+
+  if (status === "loading" || loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        Cargando...
+      </div>
+    );
   }
-  
-  const user = JSON.parse(userData);
-  const isPsychologist = user?.role === "PSYCHOLOGIST";
-  const isStudent = user?.role === "STUDENT";
 
-  // ✅ Contar alumnos desde Netlify Blobs (solo para psicólogo)
-  let totalAlumnos = 0;
-  if (isPsychologist) {
-    // Nota: En Netlify Blobs no hay una función nativa para contar, 
-    // esto es un ejemplo simplificado. Idealmente guardarías un índice separado.
-    totalAlumnos = 0; // Puedes implementar un store separado para conteos
+  if (!session) {
+    return null;
   }
 
-  const styles = {
-    container: { maxWidth: '1200px', margin: '0 auto', padding: '2rem' },
-    welcomeCard: {
-      background: 'linear-gradient(135deg, #4a90c4 0%, #357a9e 100%)',
-      color: 'white',
-      padding: '2rem',
-      borderRadius: '24px',
-      marginBottom: '2rem',
-      textAlign: 'center' as const,
-      boxShadow: '0 10px 25px rgba(74, 144, 196, 0.2)',
-    },
-    welcomeTitle: { fontSize: '1.8rem', fontWeight: '600', marginBottom: '0.25rem' },
-    welcomeEmail: { fontSize: '1rem', opacity: 0.9, marginBottom: '0.5rem' },
-    roleBadge: {
-      display: 'inline-block',
-      background: 'rgba(255,255,255,0.2)',
-      padding: '0.25rem 1rem',
-      borderRadius: '20px',
-      fontSize: '0.8rem',
-      fontWeight: '500',
-    },
-    statsGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-      gap: '1rem',
-      marginBottom: '2rem',
-    },
-    statCard: {
-      background: 'var(--card-bg)',
-      borderRadius: '16px',
-      padding: '1rem',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '0.8rem',
-      border: '1px solid var(--border-color)',
-    },
-    statIcon: {
-      width: '45px',
-      height: '45px',
-      borderRadius: '12px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '1.3rem',
-    },
-    statInfo: { flex: 1 },
-    statLabel: { color: 'var(--secondary-text)', fontSize: '0.7rem', textTransform: 'uppercase' as const },
-    statValue: { fontSize: '1.6rem', fontWeight: '700', color: 'var(--text-color)' },
-    modulesGrid: {
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-      gap: '1.5rem',
-      marginTop: '1rem',
-    },
-    moduleCard: {
-      background: 'var(--card-bg)',
-      borderRadius: '20px',
-      padding: '1.5rem',
-      border: '1px solid var(--border-color)',
-      boxShadow: 'var(--shadow)',
-    },
-    moduleIcon: { fontSize: '2rem', marginBottom: '0.8rem' },
-    moduleTitle: { fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-color)', marginBottom: '0.5rem' },
-    moduleDesc: { color: 'var(--secondary-text)', fontSize: '0.85rem', marginBottom: '1rem' },
-    moduleButton: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '0.5rem',
-      padding: '0.5rem 1rem',
-      background: 'var(--button-primary)',
-      color: 'white',
-      borderRadius: '10px',
-      fontSize: '0.8rem',
-      textDecoration: 'none',
-    },
-    logoutSection: { marginTop: '2rem', textAlign: 'center' as const },
-    studentMessage: { color: 'var(--secondary-text)', marginBottom: '1.5rem', fontSize: '0.95rem', textAlign: 'center' as const },
-  };
+  const isPsychologist = userRole === "PSYCHOLOGIST";
+  const isStudent = userRole === "STUDENT";
 
   const studentModules = [
     { icon: <FaFileExcel />, title: "Test Psicológico", desc: "Descarga el test, complétalo y súbelo aquí", link: "/test-excel" },
@@ -128,10 +61,87 @@ export default async function Dashboard() {
 
   const modules = isPsychologist ? psychologistModules : studentModules;
 
+  const styles = {
+    container: { maxWidth: '1200px', margin: '0 auto', padding: '2rem' },
+    welcomeCard: {
+      background: 'linear-gradient(135deg, #4a90c4 0%, #357a9e 100%)',
+      color: 'white',
+      padding: '2rem',
+      borderRadius: '24px',
+      marginBottom: '2rem',
+      textAlign: 'center' as const,
+    },
+    welcomeTitle: { fontSize: '1.8rem', fontWeight: '600', marginBottom: '0.25rem' },
+    welcomeEmail: { fontSize: '1rem', opacity: 0.9, marginBottom: '0.5rem' },
+    roleBadge: {
+      display: 'inline-block',
+      background: 'rgba(255,255,255,0.2)',
+      padding: '0.25rem 1rem',
+      borderRadius: '20px',
+      fontSize: '0.8rem',
+      fontWeight: '500',
+    },
+    statsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+      gap: '1rem',
+      marginBottom: '2rem',
+    },
+    statCard: {
+      background: 'white',
+      borderRadius: '16px',
+      padding: '1rem',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.8rem',
+      border: '1px solid #e2e8f0',
+    },
+    statIcon: {
+      width: '45px',
+      height: '45px',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '1.3rem',
+    },
+    statInfo: { flex: 1 },
+    statLabel: { color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase' as const },
+    statValue: { fontSize: '1.6rem', fontWeight: '700', color: '#1e293b' },
+    modulesGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+      gap: '1.5rem',
+      marginTop: '1rem',
+    },
+    moduleCard: {
+      background: 'white',
+      borderRadius: '20px',
+      padding: '1.5rem',
+      border: '1px solid #e2e8f0',
+    },
+    moduleIcon: { fontSize: '2rem', marginBottom: '0.8rem' },
+    moduleTitle: { fontSize: '1.2rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.5rem' },
+    moduleDesc: { color: '#64748b', fontSize: '0.85rem', marginBottom: '1rem' },
+    moduleButton: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      padding: '0.5rem 1rem',
+      background: '#4f46e5',
+      color: 'white',
+      borderRadius: '10px',
+      fontSize: '0.8rem',
+      textDecoration: 'none',
+    },
+    logoutSection: { marginTop: '2rem', textAlign: 'center' as const },
+    studentMessage: { color: '#64748b', marginBottom: '1.5rem', fontSize: '0.95rem', textAlign: 'center' as const },
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.welcomeCard}>
-        <h1 style={styles.welcomeTitle}>¡Bienvenido, {user?.name || "Usuario"}!</h1>
+        <h1 style={styles.welcomeTitle}>¡Bienvenido, {userName}!</h1>
         <p style={styles.welcomeEmail}>{session.user?.email}</p>
         <span style={styles.roleBadge}>
           {isPsychologist ? "Psicóloga" : "Panel de Estudiantes"}
@@ -144,7 +154,7 @@ export default async function Dashboard() {
             <div style={{...styles.statIcon, background: '#4a90c415', color: '#4a90c4'}}><FaUsers /></div>
             <div style={styles.statInfo}>
               <div style={styles.statLabel}>Alumnos</div>
-              <div style={styles.statValue}>{totalAlumnos}</div>
+              <div style={styles.statValue}>0</div>
             </div>
           </div>
         </div>
@@ -156,7 +166,7 @@ export default async function Dashboard() {
         </div>
       )}
 
-      <h2 style={{ fontSize: '1.3rem', fontWeight: '600', color: 'var(--text-color)', marginBottom: '1rem' }}>
+      <h2 style={{ fontSize: '1.3rem', fontWeight: '600', color: '#1e293b', marginBottom: '1rem' }}>
         📌 {isPsychologist ? "Módulos de Gestión" : "Mis Módulos"}
       </h2>
 
