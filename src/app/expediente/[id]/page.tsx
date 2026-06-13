@@ -26,11 +26,10 @@ import {
   Cell
 } from "recharts";
 
-// ✅ Importación dinámica para jsPDF y html2canvas (solo cliente)
+// Importación dinámica para jsPDF y html2canvas (solo cliente)
 let jsPDF: any = null;
 let html2canvas: any = null;
 
-// ... (el resto de tus interfaces y funciones helper quedan igual)
 interface Alumno {
   id: string;
   name: string;
@@ -348,38 +347,61 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           </div>
         )}
 
+        {/* ✅ Tabla de evaluaciones corregida */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaClipboardList /> Evaluaciones Psicológicas</h2>
           {evaluaciones.length === 0 ? (
             <p style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>No hay evaluaciones registradas</p>
           ) : (
             <table style={styles.table}>
-              <thead><tr><th style={styles.th}>Fecha</th><th style={styles.th}>Puntaje</th><th style={styles.th}>Estado</th></tr></thead>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Fecha</th>
+                  <th style={styles.th}>Puntaje</th>
+                  <th style={styles.th}>Estado</th>
+                </tr>
+              </thead>
               <tbody>
-                {evaluaciones.map(e => (
+                {evaluaciones.map((e) => (
                   <tr key={e.id}>
                     <td style={styles.td}>{new Date(e.createdAt).toLocaleDateString()}</td>
                     <td style={styles.td}>{e.score}</td>
-                    <td style={styles.td}><span style={styles.statusBadge(e.status)}>{e.status === "GREEN" ? "Estable" : e.status === "YELLOW" ? "En observación" : "Requiere atención"}</span></td>
-                  </table>
+                    <td style={styles.td}>
+                      <span style={styles.statusBadge(e.status)}>
+                        {e.status === "GREEN" ? "Estable" : e.status === "YELLOW" ? "En observación" : "Requiere atención"}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
 
+        {/* ✅ Tabla de actividades corregida */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaTasks /> Actividades Asignadas</h2>
           {actividades.length === 0 ? (
             <p style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>No hay actividades asignadas</p>
           ) : (
             <table style={styles.table}>
-              <thead><tr><th style={styles.th}>Título</th><th style={styles.th}>Estado</th><th style={styles.th}>Calificación</th><th style={styles.th}>Fecha límite</th></tr></thead>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Título</th>
+                  <th style={styles.th}>Estado</th>
+                  <th style={styles.th}>Calificación</th>
+                  <th style={styles.th}>Fecha límite</th>
+                </tr>
+              </thead>
               <tbody>
-                {actividades.map(a => (
+                {actividades.map((a) => (
                   <tr key={a.id}>
                     <td style={styles.td}>{a.title}</td>
-                    <td style={styles.td}><span style={styles.statusBadge(a.status)}>{a.status === "PENDING" ? "Pendiente" : a.status === "COMPLETED" ? "Completada" : "Calificada"}</span></td>
+                    <td style={styles.td}>
+                      <span style={styles.statusBadge(a.status)}>
+                        {a.status === "PENDING" ? "Pendiente" : a.status === "COMPLETED" ? "Completada" : "Calificada"}
+                      </span>
+                    </td>
                     <td style={styles.td}>{a.grade ? `${a.grade}/100` : "-"}</td>
                     <td style={styles.td}>{new Date(a.dueDate).toLocaleDateString()}</td>
                   </tr>
@@ -389,15 +411,21 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           )}
         </div>
 
+        {/* ✅ Tabla de citas corregida */}
         <div style={styles.card}>
           <h2 style={styles.cardTitle}><FaCalendarAlt /> Historial de Citas</h2>
           {citas.length === 0 ? (
             <p style={{ color: '#64748b', textAlign: 'center', padding: '2rem' }}>No hay citas registradas</p>
           ) : (
             <table style={styles.table}>
-              <thead><tr><th style={styles.th}>Fecha</th><th style={styles.th}>Hora</th></tr></thead>
+              <thead>
+                <tr>
+                  <th style={styles.th}>Fecha</th>
+                  <th style={styles.th}>Hora</th>
+                </tr>
+              </thead>
               <tbody>
-                {citas.map(c => (
+                {citas.map((c) => (
                   <tr key={c.id}>
                     <td style={styles.td}>{new Date(c.date).toLocaleDateString()}</td>
                     <td style={styles.td}>{new Date(c.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
