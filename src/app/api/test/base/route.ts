@@ -4,8 +4,6 @@ import { getStore } from "@netlify/blobs";
 
 export async function GET() {
   const session = await getServerSession();
-  console.log("🔍 GET - Session:", JSON.stringify(session?.user, null, 2));
-  
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
@@ -22,18 +20,27 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession();
-  console.log("🔍 POST - Session completa:", JSON.stringify(session, null, 2));
-  console.log("🔍 POST - User role:", session?.user?.role);
+  console.log("🔍 Session user:", session?.user);
   
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const user = session.user;
+  // 🔧 Obtener el usuario directamente del store de usuarios
+  const usuariosStore = getStore("usuarios");
+  const userData = await usuariosStore.get(session.user?.email);
+  
+  if (!userData) {
+    return NextResponse.json({ error: "Usuario no encontrado en store" }, { status: 404 });
+  }
+  
+  const user = JSON.parse(userData);
+  console.log("📦 Usuario desde store:", { email: user.email, role: user.role });
+  
   if (user.role !== "PSYCHOLOGIST") {
     return NextResponse.json({ 
       error: "No autorizado. Rol detectado: " + (user.role || "ninguno"),
-      sessionInfo: { email: user.email, role: user.role }
+      role: user.role
     }, { status: 403 });
   }
 
