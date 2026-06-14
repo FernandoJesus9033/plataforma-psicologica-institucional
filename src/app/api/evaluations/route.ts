@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { calculateStatus } from "@/lib/psychologicalStatus";
+import { getStore } from "@netlify/blobs";
+
+function calculateStatus(score: number): string {
+  if (score >= 70) return "GREEN";
+  if (score >= 40) return "YELLOW";
+  return "RED";
+}
 
 export async function GET() {
   try {
@@ -10,10 +15,16 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const evaluations = await prisma.evaluation.findMany({
-      include: { student: true },
-      orderBy: { createdAt: "desc" }
-    });
+    const store = getStore("evaluaciones");
+    const evaluations: any[] = [];
+
+    for await (const item of store.list()) {
+      const evaluacion = await store.get(item.key);
+      if (evaluacion) {
+        evaluations.push(JSON.parse(evaluacion));
+      }
+    }
+
     return NextResponse.json(evaluations);
   } catch (error) {
     console.error("Error al obtener evaluaciones:", error);
@@ -28,6 +39,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const user = session.user;
+    if (user.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { studentId, score } = body;
 
@@ -38,25 +54,43 @@ export async function POST(req: Request) {
       );
     }
 
-    const student = await prisma.student.findUnique({
-      where: { id: studentId }
-    });
+    // Obtener datos del estudiante desde el store de usuarios
+    const usuariosStore = getStore("usuarios");
+    let studentName = "";
+    let studentEmail = "";
 
-    if (!student) {
+    // Buscar por email o por ID
+    for await (const item of usuariosStore.list()) {
+      const usuario = await usuariosStore.get(item.key);
+      if (usuario) {
+        const parsed = JSON.parse(usuario);
+        if (parsed.id === studentId || parsed.email === studentId) {
+          studentName = parsed.name;
+          studentEmail = parsed.email;
+          break;
+        }
+      }
+    }
+
+    if (!studentName) {
       return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
     }
 
     const status = calculateStatus(score);
-    console.log("✅ Creando evaluación:", { studentId, score, status });
+    console.log("✅ Creando evaluación:", { studentId, studentName, score, status });
 
-    const evaluation = await prisma.evaluation.create({
-      data: { 
-        studentId, 
-        score, 
-        status
-      },
-      include: { student: true }
-    });
+    const evaluation = {
+      id: crypto.randomUUID(),
+      studentId: studentId,
+      studentName,
+      studentEmail,
+      score,
+      status,
+      createdAt: new Date().toISOString()
+    };
+
+    const store = getStore("evaluaciones");
+    await store.setJSON(evaluation.id, evaluation);
 
     return NextResponse.json(evaluation, { status: 201 });
   } catch (error) {
