@@ -58,6 +58,11 @@ const handler = NextAuth({
         console.log("✅ [jwt] Token actualizado con usuario:", { id: user.id, role: user.role });
       }
       
+      // ✅ Forzar que el rol se mantenga en el token
+      if (token.role) {
+        console.log("🔑 [jwt] Rol en token:", token.role);
+      }
+      
       console.log("🔑 [jwt] Token después:", { id: token.id, role: token.role });
       return token;
     },
@@ -67,10 +72,12 @@ const handler = NextAuth({
       if (session?.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        // ✅ Forzar que el rol se incluya en la sesión
+        session.user.role = token.role;
         console.log("✅ [session] Session actualizada con token:", { id: token.id, role: token.role });
       }
       
-      console.log("📋 [session] Session después:", { user: session.user });
+      console.log("📋 [session] Session después:", { user: session.user, role: token.role });
       return session;
     }
   },

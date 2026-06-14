@@ -40,13 +40,21 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
+    console.log("🔍 Session completa en POST alumnos:", JSON.stringify(session, null, 2));
+    console.log("🔍 Session user:", session?.user);
+    console.log("🔍 Session user role:", session?.user?.role);
+    
     if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+      return NextResponse.json({ error: "No autorizado - No hay sesión" }, { status: 401 });
     }
 
     const user = session.user;
-    if (user.role !== "PSYCHOLOGIST") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    if (!user.role || user.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ 
+        error: "No autorizado", 
+        detectedRole: user.role || "ninguno",
+        message: "Se requiere rol PSYCHOLOGIST"
+      }, { status: 403 });
     }
 
     const { name, email, password, role } = await req.json();
