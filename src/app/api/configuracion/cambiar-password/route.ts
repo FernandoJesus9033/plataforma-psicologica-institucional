@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
+import { getStore } from "@netlify/blobs";
 import bcrypt from "bcrypt";
 
 export async function POST(req: Request) {
@@ -11,29 +11,32 @@ export async function POST(req: Request) {
 
   const { currentPassword, newPassword } = await req.json();
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email ?? undefined }
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-
-  const passwordMatch = await bcrypt.compare(currentPassword, user.password);
-  if (!passwordMatch) {
-    return NextResponse.json({ error: "Contraseña actual incorrecta" }, { status: 400 });
+  if (!currentPassword || !newPassword) {
+    return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
   }
 
   if (newPassword.length < 6) {
     return NextResponse.json({ error: "La nueva contraseña debe tener al menos 6 caracteres" }, { status: 400 });
   }
 
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const store = getStore("usuarios");
+  const userData = await store.get(session.user.email);
+  
+  if (!userData) {
+    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+  }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { password: hashedPassword }
-  });
+  const user = JSON.parse(userData);
+  const isValid = await bcrypt.compare(currentPassword, user.password);
+  
+  if (!isValid) {
+    return NextResponse.json({ error: "Contraseña actual incorrecta" }, { status: 400 });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
+  
+  await store.setJSON(session.user.email, user);
 
   return NextResponse.json({ success: true, message: "Contraseña actualizada correctamente" });
 }

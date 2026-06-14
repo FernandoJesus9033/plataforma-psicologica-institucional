@@ -1,19 +1,52 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { obtenerCitasPorEstudiante, guardarCita, cancelarCita, type Cita } from "@/lib/blobs";
+import { getStore } from "@netlify/blobs";
 
-// GET: Obtener citas del estudiante actual
+export interface Cita {
+  id: string;
+  studentEmail: string;
+  studentName: string;
+  fecha: string;
+  hora: string;
+  motivo: string;
+  estado: "PENDIENTE" | "CONFIRMADA" | "CANCELADA" | "COMPLETADA";
+  createdAt: string;
+}
+
 export async function GET() {
   const session = await getServerSession();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const citas = await obtenerCitasPorEstudiante(session.user.email);
+  const store = getStore("citas");
+  const citas: Cita[] = [];
+
+  // Si es psicóloga, ver todas las citas
+  if (session.user.role === "PSYCHOLOGIST") {
+    for await (const item of store.list()) {
+      const cita = await store.get(item.key);
+      if (cita) {
+        citas.push(JSON.parse(cita));
+      }
+    }
+    return NextResponse.json(citas);
+  }
+
+  // Si es estudiante, solo sus citas
+  for await (const item of store.list()) {
+    const cita = await store.get(item.key);
+    if (cita) {
+      const parsed = JSON.parse(cita);
+      if (parsed.studentEmail === session.user.email) {
+        citas.push(parsed);
+      }
+    }
+  }
+
   return NextResponse.json(citas);
 }
 
-// POST: Crear una nueva cita
 export async function POST(req: Request) {
   const session = await getServerSession();
   if (!session?.user?.email) {
@@ -38,11 +71,11 @@ export async function POST(req: Request) {
     createdAt: new Date().toISOString(),
   };
 
-  await guardarCita(cita);
+  const store = getStore("citas");
+  await store.setJSON(cita.id, cita);
   return NextResponse.json(cita, { status: 201 });
 }
 
-// DELETE: Cancelar una cita
 export async function DELETE(req: Request) {
   const session = await getServerSession();
   if (!session?.user?.email) {
@@ -56,10 +89,16 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "ID de cita requerido" }, { status: 400 });
   }
 
-  const cita = await cancelarCita(id);
+  const store = getStore("citas");
+  const cita = await store.get(id);
+  
   if (!cita) {
     return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
   }
+
+  const parsed = JSON.parse(cita);
+  parsed.estado = "CANCELADA";
+  await store.setJSON(id, parsed);
 
   return NextResponse.json({ success: true });
 }

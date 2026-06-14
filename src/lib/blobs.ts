@@ -1,30 +1,9 @@
-// src/lib/blobs.ts
 import { getStore } from "@netlify/blobs";
 
-export async function getCitasStore() {
-  return getStore("citas");
-}
-
-export interface Cita {
-  id: string;
-  studentEmail: string;
-  studentName: string;
-  fecha: string;
-  hora: string;
-  motivo: string;
-  estado: "PENDIENTE" | "CONFIRMADA" | "CANCELADA" | "COMPLETADA";
-  createdAt: string;
-}
-
-export async function guardarCita(cita: Cita) {
-  const store = await getCitasStore();
-  await store.setJSON(cita.id, cita);
-  return cita;
-}
-
 export async function obtenerCitasPorEstudiante(email: string) {
-  const store = await getCitasStore();
-  const citas: Cita[] = [];
+  const store = getStore("citas");
+  const citas: any[] = [];
+
   for await (const item of store.list()) {
     const cita = await store.get(item.key);
     if (cita) {
@@ -34,11 +13,18 @@ export async function obtenerCitasPorEstudiante(email: string) {
       }
     }
   }
+
   return citas.sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
 }
 
+export async function guardarCita(cita: any) {
+  const store = getStore("citas");
+  await store.setJSON(cita.id, cita);
+  return cita;
+}
+
 export async function cancelarCita(id: string) {
-  const store = await getCitasStore();
+  const store = getStore("citas");
   const cita = await store.get(id);
   if (cita) {
     const parsed = JSON.parse(cita);
