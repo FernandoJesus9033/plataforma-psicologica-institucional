@@ -1,47 +1,54 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FaUsers, FaChartLine, FaCalendarAlt, FaStar, FaUserGraduate, FaClipboardList, FaArrowLeft, FaCheckCircle, FaExclamationTriangle, FaCalendarCheck } from "react-icons/fa";
+import { 
+  FaUsers, FaChartLine, FaCalendarAlt, FaStar, FaUserGraduate, 
+  FaClipboardList, FaArrowLeft, FaCheckCircle, FaExclamationTriangle, FaCalendarCheck 
+} from "react-icons/fa";
 
-export default async function EstadisticasPage() {
-  const session = await getServerSession();
-  if (!session) redirect("/login");
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
+export default function EstadisticasPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [stats, setStats] = useState({
+    totalAlumnos: 0,
+    totalEvaluaciones: 0,
+    totalCitas: 0,
+    promedio: "0.0",
+    estadoVerde: 0,
+    estadoAmarillo: 0,
+    estadoRojo: 0,
+    proximasCitas: 0,
+    ultimasEvaluaciones: [] as any[]
   });
+  const [loading, setLoading] = useState(true);
 
-  const isPsychologist = user?.role === "PSYCHOLOGIST";
-  if (!isPsychologist) redirect("/dashboard");
-
-  const totalAlumnos = await prisma.student.count();
-  const totalEvaluaciones = await prisma.evaluation.count();
-  const totalCitas = await prisma.appointment.count();
-  
-  const evaluaciones = await prisma.evaluation.findMany();
-  const promedio = evaluaciones.length > 0 
-    ? (evaluaciones.reduce((acc, e) => acc + e.score, 0) / evaluaciones.length).toFixed(1)
-    : "0.0";
-
-  const estadoVerde = evaluaciones.filter(e => e.status === "GREEN").length;
-  const estadoAmarillo = evaluaciones.filter(e => e.status === "YELLOW").length;
-  const estadoRojo = evaluaciones.filter(e => e.status === "RED").length;
-
-  const proximasCitas = await prisma.appointment.count({
-    where: {
-      date: {
-        gte: new Date(),
-        lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      }
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
     }
-  });
+    if (session?.user?.role === "PSYCHOLOGIST") {
+      cargarEstadisticas();
+    } else if (session?.user) {
+      router.push("/dashboard");
+    }
+  }, [status, session, router]);
 
-  const ultimasEvaluaciones = await prisma.evaluation.findMany({
-    take: 5,
-    orderBy: { createdAt: "desc" },
-    include: { student: true }
-  });
+  const cargarEstadisticas = async () => {
+    try {
+      const res = await fetch("/api/estadisticas");
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const styles = {
     container: { maxWidth: '1200px', margin: '0 auto', padding: '2rem' },
@@ -125,6 +132,14 @@ export default async function EstadisticasPage() {
     }
   `;
 
+  if (status === "loading" || loading) {
+    return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
+  }
+
+  if (session?.user?.role !== "PSYCHOLOGIST") {
+    return <div style={{ textAlign: 'center', padding: '4rem' }}>Acceso no autorizado</div>;
+  }
+
   return (
     <>
       <style>{responsiveStyles}</style>
@@ -137,40 +152,40 @@ export default async function EstadisticasPage() {
         <div className="stats-grid" style={styles.statsGrid}>
           <div style={styles.statCard}>
             <div style={{...styles.statIcon, color: '#4a90c4'}}><FaUserGraduate /></div>
-            <div style={styles.statValue}>{totalAlumnos}</div>
+            <div style={styles.statValue}>{stats.totalAlumnos}</div>
             <div style={styles.statLabel}>Total Alumnos</div>
           </div>
           <div style={styles.statCard}>
             <div style={{...styles.statIcon, color: '#10b981'}}><FaClipboardList /></div>
-            <div style={styles.statValue}>{totalEvaluaciones}</div>
+            <div style={styles.statValue}>{stats.totalEvaluaciones}</div>
             <div style={styles.statLabel}>Evaluaciones</div>
           </div>
           <div style={styles.statCard}>
             <div style={{...styles.statIcon, color: '#f59e0b'}}><FaCalendarAlt /></div>
-            <div style={styles.statValue}>{totalCitas}</div>
+            <div style={styles.statValue}>{stats.totalCitas}</div>
             <div style={styles.statLabel}>Citas Agendadas</div>
           </div>
           <div style={styles.statCard}>
             <div style={{...styles.statIcon, color: '#8b5cf6'}}><FaStar /></div>
-            <div style={styles.statValue}>{promedio}</div>
+            <div style={styles.statValue}>{stats.promedio}</div>
             <div style={styles.statLabel}>Promedio General</div>
           </div>
         </div>
 
-        {totalEvaluaciones > 0 && (
+        {(stats.totalEvaluaciones > 0 || true) && (
           <div style={styles.semaforoSection}>
             <h2 style={styles.semaforoTitle}><FaChartLine /> Distribución de Estados</h2>
             <div className="semaforo-grid" style={styles.semaforoGrid}>
               <div style={styles.semaforoCard("#10b981", "#10b98110")}>
-                <div style={styles.semaforoValue("#10b981")}>{estadoVerde}</div>
+                <div style={styles.semaforoValue("#10b981")}>{stats.estadoVerde}</div>
                 <div style={styles.semaforoLabel}>🟢 Estable</div>
               </div>
               <div style={styles.semaforoCard("#f59e0b", "#f59e0b10")}>
-                <div style={styles.semaforoValue("#f59e0b")}>{estadoAmarillo}</div>
+                <div style={styles.semaforoValue("#f59e0b")}>{stats.estadoAmarillo}</div>
                 <div style={styles.semaforoLabel}>🟡 En observación</div>
               </div>
               <div style={styles.semaforoCard("#ef4444", "#ef444410")}>
-                <div style={styles.semaforoValue("#ef4444")}>{estadoRojo}</div>
+                <div style={styles.semaforoValue("#ef4444")}>{stats.estadoRojo}</div>
                 <div style={styles.semaforoLabel}>🔴 Requiere atención</div>
               </div>
             </div>
@@ -180,9 +195,9 @@ export default async function EstadisticasPage() {
         <div className="two-columns" style={styles.twoColumns}>
           <div style={styles.citasCard}>
             <h2 style={styles.citasTitle}><FaCalendarCheck /> Próximas citas</h2>
-            <div style={styles.citasNumber}>{proximasCitas}</div>
+            <div style={styles.citasNumber}>{stats.proximasCitas}</div>
             <p style={styles.citasText}>
-              {proximasCitas === 1 
+              {stats.proximasCitas === 1 
                 ? "cita programada en los próximos 7 días"
                 : `citas programadas en los próximos 7 días`}
             </p>
@@ -190,14 +205,14 @@ export default async function EstadisticasPage() {
 
           <div style={styles.evaluacionesCard}>
             <h2 style={styles.evaluacionesTitle}><FaClipboardList /> Últimas evaluaciones</h2>
-            {ultimasEvaluaciones.length === 0 ? (
+            {stats.ultimasEvaluaciones.length === 0 ? (
               <p style={{ color: '#64748b' }}>No hay evaluaciones recientes</p>
             ) : (
               <div style={styles.evaluacionesList}>
-                {ultimasEvaluaciones.map(evalucion => (
-                  <div key={evalucion.id} style={styles.evaluacionItem}>
-                    <span style={styles.evaluacionNombre}>{evalucion.student.name}</span>
-                    <span style={styles.evaluacionScore(evalucion.score)}>{evalucion.score}</span>
+                {stats.ultimasEvaluaciones.map((evaluacion: any) => (
+                  <div key={evaluacion.id} style={styles.evaluacionItem}>
+                    <span style={styles.evaluacionNombre}>{evaluacion.studentName}</span>
+                    <span style={styles.evaluacionScore(evaluacion.score)}>{evaluacion.score}</span>
                   </div>
                 ))}
               </div>

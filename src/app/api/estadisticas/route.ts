@@ -13,10 +13,9 @@ export async function GET() {
   }
 
   try {
-    // 1. Contar alumnos desde el store de usuarios
+    // 1. Contar alumnos
     const usuariosStore = getStore("usuarios");
     let totalAlumnos = 0;
-    
     for await (const item of usuariosStore.list()) {
       const usuario = await usuariosStore.get(item.key);
       if (usuario) {
@@ -27,10 +26,11 @@ export async function GET() {
       }
     }
 
-    // 2. Obtener evaluaciones (si tienes un store de evaluaciones)
+    // 2. Evaluaciones (si existen)
     let totalEvaluaciones = 0;
     let sumaPuntajes = 0;
-    let promedioPuntaje = 0;
+    let estadoVerde = 0, estadoAmarillo = 0, estadoRojo = 0;
+    let ultimasEvaluaciones: any[] = [];
     
     try {
       const evaluacionesStore = getStore("evaluaciones");
@@ -40,15 +40,26 @@ export async function GET() {
           const parsed = JSON.parse(evaluacion);
           totalEvaluaciones++;
           sumaPuntajes += parsed.score || 0;
+          
+          if (parsed.status === "GREEN") estadoVerde++;
+          else if (parsed.status === "YELLOW") estadoAmarillo++;
+          else estadoRojo++;
+          
+          ultimasEvaluaciones.push({
+            id: parsed.id,
+            studentName: parsed.studentName || "Alumno",
+            score: parsed.score
+          });
         }
       }
-      promedioPuntaje = totalEvaluaciones > 0 ? Math.round(sumaPuntajes / totalEvaluaciones) : 0;
-    } catch (e) {
-      // Si no existe el store, ignorar
-    }
+      ultimasEvaluaciones = ultimasEvaluaciones.slice(0, 5);
+    } catch (e) {}
 
-    // 3. Contar citas (sin contar las canceladas)
+    const promedio = totalEvaluaciones > 0 ? (sumaPuntajes / totalEvaluaciones).toFixed(1) : "0.0";
+
+    // 3. Citas
     let totalCitas = 0;
+    let proximasCitas = 0;
     try {
       const citasStore = getStore("citas");
       for await (const item of citasStore.list()) {
@@ -57,18 +68,25 @@ export async function GET() {
           const parsed = JSON.parse(cita);
           if (parsed.estado !== "CANCELADA") {
             totalCitas++;
+            const fechaCita = new Date(parsed.fecha);
+            if (fechaCita >= new Date() && fechaCita <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) {
+              proximasCitas++;
+            }
           }
         }
       }
-    } catch (e) {
-      // Si no existe el store, ignorar
-    }
+    } catch (e) {}
 
     return NextResponse.json({
       totalAlumnos,
       totalEvaluaciones,
       totalCitas,
-      promedioPuntaje
+      promedio,
+      estadoVerde,
+      estadoAmarillo,
+      estadoRojo,
+      proximasCitas,
+      ultimasEvaluaciones
     });
   } catch (error) {
     console.error("Error al obtener estadísticas:", error);
@@ -76,7 +94,12 @@ export async function GET() {
       totalAlumnos: 0,
       totalEvaluaciones: 0,
       totalCitas: 0,
-      promedioPuntaje: 0
+      promedio: "0.0",
+      estadoVerde: 0,
+      estadoAmarillo: 0,
+      estadoRojo: 0,
+      proximasCitas: 0,
+      ultimasEvaluaciones: []
     });
   }
 }
