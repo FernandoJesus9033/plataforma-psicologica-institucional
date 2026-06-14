@@ -4,6 +4,8 @@ import { getStore } from "@netlify/blobs";
 
 export async function GET() {
   const session = await getServerSession();
+  console.log("🔍 GET - Session:", JSON.stringify(session?.user, null, 2));
+  
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
@@ -20,13 +22,19 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession();
+  console.log("🔍 POST - Session completa:", JSON.stringify(session, null, 2));
+  console.log("🔍 POST - User role:", session?.user?.role);
+  
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
   const user = session.user;
   if (user.role !== "PSYCHOLOGIST") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    return NextResponse.json({ 
+      error: "No autorizado. Rol detectado: " + (user.role || "ninguno"),
+      sessionInfo: { email: user.email, role: user.role }
+    }, { status: 403 });
   }
 
   try {
@@ -41,11 +49,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo se permiten archivos .xlsx" }, { status: 400 });
     }
 
-    // Leer el archivo como buffer
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     
-    // Guardar en Netlify Blobs
     const store = getStore("test-base");
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
@@ -55,7 +61,6 @@ export async function POST(req: Request) {
 
     const fileUrl = `/api/archivos/${fileName}`;
     
-    // Guardar la referencia del test base activo
     const testBaseData = {
       id: "current",
       archivoNombre: file.name,
