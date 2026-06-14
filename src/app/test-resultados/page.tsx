@@ -1,24 +1,52 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+"use client";
+
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FaEye, FaBrain, FaFileExcel } from "react-icons/fa";
 
-export default async function TestResultadosPage() {
-  const session = await getServerSession();
-  if (!session) redirect("/login");
+interface TestResultado {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  completedAt: string;
+  archivoUrl: string | null;
+  scores?: string;
+  percentiles?: string;
+}
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
-  });
+export default function TestResultadosPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [resultados, setResultados] = useState<TestResultado[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const isPsychologist = user?.role === "PSYCHOLOGIST";
-  if (!isPsychologist) redirect("/dashboard");
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+    if (session?.user?.role === "PSYCHOLOGIST") {
+      cargarResultados();
+    } else if (session?.user) {
+      router.push("/dashboard");
+    }
+  }, [status, session, router]);
 
-  const resultados = await prisma.testResult.findMany({
-    include: { student: true },
-    orderBy: { completedAt: "desc" }
-  });
+  const cargarResultados = async () => {
+    try {
+      const res = await fetch("/api/test-resultados");
+      if (res.ok) {
+        const data = await res.json();
+        setResultados(data);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const styles = {
     container: { maxWidth: '1200px', margin: '0 auto', padding: '2rem' },
@@ -34,8 +62,17 @@ export default async function TestResultadosPage() {
       display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '500',
       background: tiene ? '#d1fae5' : '#fef3c7', color: tiene ? '#065f46' : '#d97706'
     }),
-    emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#64748b' }
+    emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#64748b' },
+    loadingState: { textAlign: 'center' as const, padding: '4rem', color: '#64748b' }
   };
+
+  if (status === "loading" || loading) {
+    return <div style={styles.loadingState}>Cargando...</div>;
+  }
+
+  if (session?.user?.role !== "PSYCHOLOGIST") {
+    return <div style={styles.loadingState}>Acceso no autorizado</div>;
+  }
 
   return (
     <div style={styles.container}>
@@ -68,8 +105,8 @@ export default async function TestResultadosPage() {
             <tbody>
               {resultados.map((r) => (
                 <tr key={r.id}>
-                  <td style={styles.td}><strong>{r.student.name}</strong></td>
-                  <td style={styles.td}>{r.student.email}</td>
+                  <td style={styles.td}><strong>{r.studentName}</strong></td>
+                  <td style={styles.td}>{r.studentEmail}</td>
                   <td style={styles.td}>{new Date(r.completedAt).toLocaleDateString()}</td>
                   <td style={styles.td}>
                     <span style={styles.archivoBadge(!!r.archivoUrl)}>
