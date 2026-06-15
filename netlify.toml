@@ -1,13 +1,13 @@
-[build]
-  command = "npx prisma generate && next build"
-  publish = ".next"
-
-[[redirects]]
-  from = "/api/*"
-  to = "/api/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[build] 
+  command = "npm run build" 
+  publish = ".next" 
+ 
+[functions] 
+  directory = "src/app/api" 
+  node_bundler = "esbuild" 
+ 
+[[redirects]] 
+  from = "/api/*" 
+  to = "/api/:splat" 
+  status = 200 
+  force = true 
