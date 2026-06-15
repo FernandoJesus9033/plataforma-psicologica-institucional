@@ -4,7 +4,7 @@ import { getStore } from "@netlify/blobs";
 
 export async function GET() {
   const session = await getServerSession();
-  console.log("🔍 Session en test-resultados:", session?.user?.email, "Role:", session?.user?.role);
+  console.log("🔍 [GET /api/test-resultados] Session:", session?.user?.email);
   
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
@@ -22,7 +22,7 @@ export async function GET() {
   const user = JSON.parse(userData);
   console.log("📦 Usuario desde store:", { email: user.email, role: user.role });
   
-  // Verificar rol
+  // Verificar rol - solo psicólogos pueden ver resultados
   if (user.role !== "PSYCHOLOGIST") {
     console.error("❌ Usuario no es psicólogo, rol detectado:", user.role);
     return NextResponse.json({ 
@@ -34,38 +34,93 @@ export async function GET() {
   try {
     const store = getStore("test-resultados");
     const resultados = [];
+    const archivosMap = new Map(); // Para evitar duplicados
 
+    // Recorrer todos los archivos en el store
     for await (const item of store.list()) {
-      // Ignorar archivos que no son JSON (los Excel subidos)
-      if (item.key.endsWith('.xlsx')) continue;
+      const contenido = await store.get(item.key);
+      if (!contenido) continue;
+
+      // Caso 1: Es un archivo Excel (.xlsx)
+      if (item.key.endsWith('.xlsx')) {
+        let studentEmail = "desconocido@email.com";
+        let studentName = "Estudiante";
+        
+        // Intentar extraer el email del nombre del archivo
+        // Formato: timestamp_email_nombre.xlsx
+        const emailMatch = item.key.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) {
+          studentEmail = emailMatch[0];
+          // Buscar el nombre del estudiante en el store de usuarios
+          const estudianteData = await usuariosStore.get(studentEmail);
+          if (estudianteData) {
+            try {
+              const estudiante = JSON.parse(estudianteData);
+              studentName = estudiante.name || estudiante.nombre || estudiante.nombreCompleto || "Estudiante";
+            } catch (e) {}
+          }
+        }
+        
+        archivosMap.set(item.key, {
+          archivoNombre: item.key,
+          studentEmail,
+          studentName,
+          fecha: new Date().toISOString(),
+          procesado: true
+        });
+      }
       
-      const resultado = await store.get(item.key);
-      if (resultado) {
+      // Caso 2: Es un archivo JSON con metadatos
+      if (item.key.endsWith('.json') || (!item.key.endsWith('.xlsx') && contenido.toString().trim().startsWith('{'))) {
         try {
-          const parsed = JSON.parse(resultado);
-          if (parsed.studentEmail && parsed.archivoNombre) {
-            resultados.push({
-              id: parsed.id,
-              studentName: parsed.studentName,
-              studentEmail: parsed.studentEmail,
+          const parsed = JSON.parse(contenido.toString());
+          if (parsed.archivoNombre && parsed.archivoNombre.endsWith('.xlsx')) {
+            archivosMap.set(parsed.archivoNombre, {
+              id: parsed.id || item.key,
+              studentName: parsed.studentName || "Estudiante",
+              studentEmail: parsed.studentEmail || "desconocido@email.com",
               archivoNombre: parsed.archivoNombre,
+              fecha: parsed.fecha || parsed.createdAt || new Date().toISOString(),
+              procesado: parsed.procesado || true
+            });
+          } else if (parsed.studentEmail && !archivosMap.has(item.key)) {
+            // Es un resultado sin archivo Excel asociado
+            archivosMap.set(item.key, {
+              id: parsed.id || item.key,
+              studentName: parsed.studentName || "Estudiante",
+              studentEmail: parsed.studentEmail,
+              archivoNombre: parsed.archivoNombre || `${parsed.studentEmail}_test.json`,
               fecha: parsed.fecha || parsed.createdAt || new Date().toISOString(),
               procesado: parsed.procesado || false
             });
           }
         } catch (e) {
-          // No es JSON, ignorar
-          console.log("Ignorando archivo no JSON:", item.key);
+          // No es JSON válido, ignorar
+          console.log("Ignorando archivo no parseable:", item.key);
         }
       }
     }
 
+    // Convertir el Map a array
+    for (const [key, value] of archivosMap) {
+      resultados.push({
+        id: value.id || key,
+        studentName: value.studentName,
+        studentEmail: value.studentEmail,
+        archivoNombre: value.archivoNombre,
+        fecha: value.fecha,
+        procesado: value.procesado || true
+      });
+    }
+
+    // Ordenar por fecha más reciente
     resultados.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-    console.log(`📋 Resultados encontrados: ${resultados.length}`);
     
+    console.log(`📋 Resultados encontrados: ${resultados.length}`);
     return NextResponse.json(resultados);
+    
   } catch (error) {
     console.error("Error en test-resultados:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
 }

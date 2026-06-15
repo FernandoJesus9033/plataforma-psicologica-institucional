@@ -23,6 +23,7 @@ export default function AgendaPage() {
   const [citas, setCitas] = useState<Cita[]>([]);
   const [loading, setLoading] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState({ title: "", message: "", onConfirm: () => {} });
   const [toast, setToast] = useState({ isOpen: false, message: "", type: "success" as "success" | "error" | "info" });
@@ -43,14 +44,26 @@ export default function AgendaPage() {
   }, [status, session, router]);
 
   const cargarCitas = async () => {
+    setLoading(true);
+    setError(null);
     try {
+      console.log("🔄 Cargando citas...");
       const res = await fetch("/api/citas");
+      console.log("📡 Status:", res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log("📋 Datos recibidos:", data);
+        console.log("📊 Cantidad:", data.length);
         setCitas(data);
+      } else {
+        const errorData = await res.json();
+        console.error("❌ Error:", errorData);
+        setError(errorData.error || "Error al cargar las citas");
       }
     } catch (error) {
-      console.error(error);
+      console.error("❌ Fetch error:", error);
+      setError("Error de conexión al servidor");
     } finally {
       setLoading(false);
     }
@@ -59,16 +72,18 @@ export default function AgendaPage() {
   const confirmarCita = async (id: string) => {
     setProcesando(id);
     try {
-      const res = await fetch(`/api/citas/${id}`, {
-        method: "PUT",
+      const res = await fetch("/api/citas", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: "CONFIRMADA" })
+        body: JSON.stringify({ id, status: "CONFIRMADA" })
       });
+      
       if (res.ok) {
         showToast("Cita confirmada correctamente", "success");
-        cargarCitas();
+        await cargarCitas();
       } else {
-        showToast("Error al confirmar la cita", "error");
+        const error = await res.json();
+        showToast(error.error || "Error al confirmar la cita", "error");
       }
     } catch (error) {
       console.error(error);
@@ -83,11 +98,13 @@ export default function AgendaPage() {
     setProcesando(id);
     try {
       const res = await fetch(`/api/citas?id=${id}`, { method: "DELETE" });
+      
       if (res.ok) {
         showToast("Cita cancelada correctamente", "success");
-        cargarCitas();
+        await cargarCitas();
       } else {
-        showToast("Error al cancelar la cita", "error");
+        const error = await res.json();
+        showToast(error.error || "Error al cancelar la cita", "error");
       }
     } catch (error) {
       console.error(error);
@@ -101,7 +118,7 @@ export default function AgendaPage() {
   const handleConfirmar = (id: string) => {
     setModalConfig({
       title: "Confirmar cita",
-      message: "¿Estás seguro de que deseas confirmar esta cita?",
+      message: "¿Estás seguro de que deseas confirmar esta cita? El alumno recibirá una notificación.",
       onConfirm: () => confirmarCita(id)
     });
     setModalOpen(true);
@@ -136,6 +153,7 @@ export default function AgendaPage() {
     statCard: { background: 'white', borderRadius: '16px', padding: '1rem', border: '1px solid #e2e8f0', textAlign: 'center' as const },
     statNumber: { fontSize: '2rem', fontWeight: '700', color: '#4f46e5' },
     statLabel: { fontSize: '0.8rem', color: '#64748b' },
+    errorBox: { background: '#fee2e2', color: '#dc2626', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', textAlign: 'center' as const },
     citasGrid: { display: 'grid', gap: '1rem' },
     citaCard: { background: 'white', borderRadius: '20px', padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
     citaHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap' as const, gap: '0.5rem', marginBottom: '0.75rem' },
@@ -146,15 +164,25 @@ export default function AgendaPage() {
     buttonGroup: { display: 'flex', gap: '0.5rem', marginTop: '1rem' },
     confirmButton: { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 1rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '30px', cursor: 'pointer', fontSize: '0.8rem' },
     cancelButton: { display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 1rem', background: '#fee2e2', color: '#ef4444', border: 'none', borderRadius: '30px', cursor: 'pointer', fontSize: '0.8rem' },
-    emptyState: { textAlign: 'center' as const, padding: '3rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' }
+    emptyState: { textAlign: 'center' as const, padding: '3rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' },
+    debugInfo: { background: '#f1f5f9', padding: '0.5rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.7rem', color: '#475569', fontFamily: 'monospace' }
   };
 
   if (status === "loading" || loading) {
-    return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando citas...</div>;
+    return (
+      <div style={{ textAlign: 'center', padding: '4rem' }}>
+        <FaSpinner className="animate-spin text-4xl text-indigo-600 mx-auto" />
+        <p className="mt-2">Cargando citas...</p>
+      </div>
+    );
   }
 
   if (session?.user?.role !== "PSYCHOLOGIST") {
-    return <div style={{ textAlign: 'center', padding: '4rem' }}>Acceso no autorizado</div>;
+    return (
+      <div style={{ textAlign: 'center', padding: '4rem' }}>
+        <p>Acceso no autorizado. Solo psicólogos pueden ver esta página.</p>
+      </div>
+    );
   }
 
   const pendientes = citas.filter(c => c.estado === "PENDIENTE").length;
@@ -168,6 +196,20 @@ export default function AgendaPage() {
           <FaCalendarAlt style={{ color: '#4f46e5' }} /> Agenda de Citas
         </h1>
         <p style={styles.subtitle}>Gestiona las solicitudes de cita de los alumnos</p>
+      </div>
+
+      {error && (
+        <div style={styles.errorBox}>
+          {error}
+          <button onClick={cargarCitas} style={{ marginLeft: '1rem', textDecoration: 'underline', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {/* Debug info */}
+      <div style={styles.debugInfo}>
+        🔍 Debug: {citas.length} citas cargadas desde la API | Pendientes: {pendientes} | Confirmadas: {confirmadas}
       </div>
 
       <div style={styles.statsGrid}>
@@ -189,13 +231,19 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {citas.length === 0 ? (
+      {citas.length === 0 && !error ? (
         <div style={styles.emptyState}>
           <FaCalendarAlt style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem' }} />
           <p>No hay citas solicitadas</p>
           <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Los alumnos solicitarán citas desde su panel.</p>
+          <button 
+            onClick={cargarCitas} 
+            style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+          >
+            Recargar
+          </button>
         </div>
-      ) : (
+      ) : citas.length > 0 ? (
         <div style={styles.citasGrid}>
           {citas.map((cita) => {
             const status = getStatusBadge(cita.estado);
@@ -215,7 +263,7 @@ export default function AgendaPage() {
                 <div style={styles.citaAlumno}>
                   <FaUser size={14} /> {cita.studentName} ({cita.studentEmail})
                 </div>
-                {cita.motivo && (
+                {cita.motivo && cita.motivo !== "Sin motivo" && (
                   <div style={styles.citaMotivo}>
                     <FaComment size={14} style={{ marginTop: '2px' }} />
                     <span>{cita.motivo}</span>
@@ -236,7 +284,8 @@ export default function AgendaPage() {
                       style={styles.cancelButton}
                       disabled={procesando === cita.id}
                     >
-                      <FaTrash /> Cancelar
+                      {procesando === cita.id ? <FaSpinner style={{ animation: 'spin 1s linear infinite' }} /> : <FaTrash />}
+                      Cancelar
                     </button>
                   </div>
                 )}
@@ -244,7 +293,7 @@ export default function AgendaPage() {
             );
           })}
         </div>
-      )}
+      ) : null}
 
       <ModalConfirmacion
         isOpen={modalOpen}
