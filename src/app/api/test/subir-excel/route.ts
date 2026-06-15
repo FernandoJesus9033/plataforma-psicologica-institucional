@@ -4,8 +4,6 @@ import { getStore } from "@netlify/blobs";
 
 export async function POST(req: Request) {
   const session = await getServerSession();
-  console.log("🔍 Session en subir-excel:", session?.user);
-  
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
@@ -19,7 +17,6 @@ export async function POST(req: Request) {
   }
   
   const user = JSON.parse(userData);
-  console.log("🔍 Usuario encontrado:", { email: user.email, role: user.role });
   
   if (user.role !== "STUDENT") {
     return NextResponse.json({ error: "Solo estudiantes pueden subir test" }, { status: 403 });
@@ -51,17 +48,11 @@ export async function POST(req: Request) {
       archivoNombre: file.name,
       archivoUrl: `/api/archivos/${fileName}`,
       fecha: new Date().toISOString(),
-      procesado: false,
-      puntajes: null,
-      percentiles: null
+      procesado: false
     };
     await store.setJSON(resultado.id, resultado);
 
-    return NextResponse.json({ 
-      success: true, 
-      message: "Test subido correctamente",
-      resultado 
-    });
+    return NextResponse.json({ success: true, message: "Test subido correctamente" });
   } catch (error) {
     console.error("Error al subir test:", error);
     return NextResponse.json({ error: "Error al subir el archivo" }, { status: 500 });

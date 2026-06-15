@@ -12,17 +12,28 @@ export async function GET(
   }
 
   const { nombre } = await params;
-  const store = getStore("archivos");
-  const fileBuffer = await store.get(nombre);
-
+  const decodedNombre = decodeURIComponent(nombre);
+  console.log("📥 Buscando archivo:", decodedNombre);
+  
+  // Buscar en test-base
+  const store = getStore("test-base");
+  let fileBuffer = await store.get(decodedNombre);
+  
   if (!fileBuffer) {
+    console.error("❌ Archivo no encontrado:", decodedNombre);
     return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
+  }
+
+  let contentType = "application/octet-stream";
+  if (decodedNombre.endsWith('.xlsx')) {
+    contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   }
 
   return new NextResponse(fileBuffer, {
     headers: {
-      "Content-Type": "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${nombre}"`
+      "Content-Type": contentType,
+      "Content-Disposition": `attachment; filename="${decodedNombre}"`,
+      "Cache-Control": "public, max-age=31536000"
     }
   });
 }
