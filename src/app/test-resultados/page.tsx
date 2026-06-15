@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { FaFileExcel, FaDownload, FaChartLine, FaSpinner, FaRefresh } from "react-icons/fa";
+import { FaFileExcel, FaDownload, FaChartLine, FaSpinner, FaSyncAlt } from "react-icons/fa";
 
 interface Resultado {
   id: string;
@@ -110,7 +110,7 @@ export default function TestResultadosPage() {
           <p style={styles.subtitle}>Revisa los test completados por los alumnos</p>
         </div>
         <button onClick={cargarResultados} style={styles.refreshButton} disabled={loading}>
-          <FaRefresh /> {loading ? "Actualizando..." : "Actualizar"}
+          <FaSyncAlt /> {loading ? "Actualizando..." : "Actualizar"}
         </button>
       </div>
 
