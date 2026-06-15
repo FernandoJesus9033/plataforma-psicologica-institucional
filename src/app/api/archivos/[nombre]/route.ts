@@ -12,21 +12,10 @@ export async function GET(
   }
 
   const { nombre } = await params;
-  const store = getStore("test-base");
+  const store = getStore("archivos");
   const fileBuffer = await store.get(nombre);
 
   if (!fileBuffer) {
-    // Buscar también en otros stores si es necesario
-    const actividadesStore = getStore("archivos");
-    const actividadFile = await actividadesStore.get(nombre);
-    if (actividadFile) {
-      return new NextResponse(actividadFile, {
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "Content-Disposition": `attachment; filename="${nombre}"`
-        }
-      });
-    }
     return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
   }
 
