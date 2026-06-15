@@ -55,15 +55,17 @@ export default function AgendaPage() {
         const data = await res.json();
         console.log("📋 Datos recibidos:", data);
         console.log("📊 Cantidad:", data.length);
-        setCitas(data);
+        setCitas(Array.isArray(data) ? data : []);
       } else {
         const errorData = await res.json();
         console.error("❌ Error:", errorData);
         setError(errorData.error || "Error al cargar las citas");
+        setCitas([]);
       }
     } catch (error) {
       console.error("❌ Fetch error:", error);
       setError("Error de conexión al servidor");
+      setCitas([]);
     } finally {
       setLoading(false);
     }
@@ -207,7 +209,6 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {/* Debug info */}
       <div style={styles.debugInfo}>
         🔍 Debug: {citas.length} citas cargadas desde la API | Pendientes: {pendientes} | Confirmadas: {confirmadas}
       </div>
@@ -246,7 +247,7 @@ export default function AgendaPage() {
       ) : citas.length > 0 ? (
         <div style={styles.citasGrid}>
           {citas.map((cita) => {
-            const status = getStatusBadge(cita.estado);
+            const statusBadge = getStatusBadge(cita.estado);
             return (
               <div key={cita.id} style={styles.citaCard}>
                 <div style={styles.citaHeader}>
@@ -256,8 +257,8 @@ export default function AgendaPage() {
                   <div style={styles.citaHora}>
                     <FaClock size={14} /> {cita.hora}
                   </div>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.6rem', borderRadius: '30px', fontSize: '0.7rem', fontWeight: '500', background: status.bg, color: status.color }}>
-                    {status.icon} {status.text}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.6rem', borderRadius: '30px', fontSize: '0.7rem', fontWeight: '500', background: statusBadge.bg, color: statusBadge.color }}>
+                    {statusBadge.icon} {statusBadge.text}
                   </span>
                 </div>
                 <div style={styles.citaAlumno}>

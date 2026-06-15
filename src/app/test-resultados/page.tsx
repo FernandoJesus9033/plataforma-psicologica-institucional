@@ -44,17 +44,20 @@ export default function TestResultadosPage() {
         const data = await res.json();
         console.log("📋 Resultados cargados:", data);
         console.log("📊 Cantidad:", data.length);
-        setResultados(data);
+        setResultados(Array.isArray(data) ? data : []);
       } else if (res.status === 403) {
         const errorData = await res.json();
         setError(errorData.error || "No tienes permiso para ver esta página");
+        setResultados([]);
       } else {
         const errorData = await res.json();
         setError(errorData.error || "Error al cargar los resultados");
+        setResultados([]);
       }
     } catch (error) {
       console.error("❌ Error:", error);
       setError("Error de conexión al servidor");
+      setResultados([]);
     } finally {
       setLoading(false);
     }
@@ -114,7 +117,6 @@ export default function TestResultadosPage() {
         </button>
       </div>
 
-      {/* Debug info */}
       <div style={styles.debugInfo}>
         🔍 Debug: {resultados.length} resultados cargados desde la API
       </div>
