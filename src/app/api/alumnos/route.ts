@@ -18,7 +18,6 @@ export async function GET() {
     // Verificar que el usuario existe en el store
     const usuariosStore = getStore("usuarios");
     
-    // Primero verificar que el store existe
     let testUser;
     try {
       testUser = await usuariosStore.get(session.user.email);
@@ -34,7 +33,7 @@ export async function GET() {
     }
     
     const currentUser = JSON.parse(testUser);
-    console.log("👤 Rol:", currentUser.role);
+    console.log("👤 Rol del usuario actual:", currentUser.role);
     
     if (currentUser.role !== "PSYCHOLOGIST") {
       console.error("❌ Usuario no es psicólogo:", currentUser.role);
@@ -45,21 +44,14 @@ export async function GET() {
     const students: any[] = [];
 
     try {
-      // Método alternativo: obtener todos los items del store
-      // Algunas versiones de Netlify Blobs tienen problemas con list()
-      // Usamos un enfoque más simple: solo devolvemos los usuarios que conocemos
-      // o usamos try-catch más robusto
-      
       const items = [];
       try {
-        // Intentar listar
         for await (const item of usuariosStore.list()) {
           items.push(item);
         }
         console.log(`📋 Items encontrados en store: ${items.length}`);
       } catch (listErr) {
-        console.error("Error al listar store, intentando método alternativo:", listErr);
-        // Si no podemos listar, devolvemos array vacío en lugar de error
+        console.error("Error al listar store:", listErr);
         return NextResponse.json([]);
       }
       
@@ -68,8 +60,26 @@ export async function GET() {
           const usuarioRaw = await usuariosStore.get(item.key);
           if (usuarioRaw) {
             const parsed = JSON.parse(usuarioRaw);
-            // Solo estudiantes, excluir psicólogos
-            if (parsed.role === "STUDENT" || parsed.role === "ALUMNO") {
+            console.log(`📄 Procesando: ${item.key}`, { 
+              role: parsed.role, 
+              name: parsed.name,
+              email: parsed.email
+            });
+            
+            // Excluir al psicólogo actual
+            const isPsychologist = parsed.role === "PSYCHOLOGIST" || parsed.email === session.user.email;
+            
+            // Detectar estudiantes: no psicólogos y con rol STUDENT/ALUMNO o sin rol definido
+            const isStudent = !isPsychologist && (
+              parsed.role === "STUDENT" || 
+              parsed.role === "ALUMNO" ||
+              parsed.role === undefined ||
+              parsed.role === null ||
+              parsed.role === "" ||
+              (parsed.role !== "PSYCHOLOGIST" && parsed.email !== session.user.email)
+            );
+            
+            if (isStudent) {
               students.push({
                 id: parsed.id || item.key,
                 name: parsed.name || parsed.nombre || "Sin nombre",
@@ -80,21 +90,20 @@ export async function GET() {
           }
         } catch (itemError) {
           console.error("Error procesando item:", item.key, itemError);
-          // Continuar con el siguiente item
         }
       }
     } catch (listError) {
       console.error("Error fatal al listar store:", listError);
-      // En caso de error, devolver array vacío
       return NextResponse.json([]);
     }
 
     console.log(`📊 Alumnos encontrados: ${students.length}`);
+    console.log("📋 Lista de alumnos:", students.map(s => ({ name: s.name, email: s.email })));
+    
     return NextResponse.json(students);
     
   } catch (error) {
     console.error("❌ Error en GET alumnos:", error);
-    // Siempre devolver array vacío en caso de error
     return NextResponse.json([]);
   }
 }
