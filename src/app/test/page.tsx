@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { FaDownload, FaUpload, FaSpinner } from "react-icons/fa";
+import { FaDownload, FaUpload } from "react-icons/fa";
 
 export default function TestPage() {
   const { data: session, status } = useSession();
@@ -25,14 +25,14 @@ export default function TestPage() {
       const res = await fetch("/api/test/base");
       if (res.ok) {
         const data = await res.json();
-        console.log("📦 Test base cargado:", data);
+        console.log("📦 Test base recibido:", data);
         setTestBase(data);
       } else {
-        setMensaje("❌ No hay test base disponible");
+        setMensaje("No hay test base disponible");
       }
     } catch (error) {
       console.error(error);
-      setMensaje("❌ Error al cargar el test");
+      setMensaje("Error al cargar el test");
     } finally {
       setCargando(false);
     }
@@ -60,7 +60,7 @@ export default function TestPage() {
         setMensaje("✅ Test subido correctamente");
       } else {
         const error = await res.json();
-        setMensaje(error.error || "❌ Error al subir el test");
+        setMensaje(error.error || "❌ Error al subir");
       }
     } catch (error) {
       setMensaje("❌ Error de conexión");
@@ -102,7 +102,7 @@ export default function TestPage() {
             <FaDownload /> Descargar Test ({testBase.archivoNombre || "Excel"})
           </a>
         ) : (
-          <p style={{ color: '#dc2626' }}>No hay test base disponible. Contacta al psicólogo.</p>
+          <p style={{ color: '#dc2626' }}>⚠️ No hay test base disponible. Contacta al psicólogo.</p>
         )}
       </div>
 
