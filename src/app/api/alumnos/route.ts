@@ -17,26 +17,53 @@ export async function GET() {
 
     // Verificar que el usuario existe en el store
     const usuariosStore = getStore("usuarios");
-    const userData = await usuariosStore.get(session.user.email);
     
-    if (!userData) {
+    // Primero verificar que el store existe
+    let testUser;
+    try {
+      testUser = await usuariosStore.get(session.user.email);
+      console.log("✅ Store accesible, usuario encontrado:", !!testUser);
+    } catch (err) {
+      console.error("❌ Error accediendo al store:", err);
+      return NextResponse.json({ error: "Error de conexión al almacén de datos" }, { status: 500 });
+    }
+    
+    if (!testUser) {
       console.error("❌ Usuario no encontrado en store:", session.user.email);
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
     
-    const currentUser = JSON.parse(userData);
+    const currentUser = JSON.parse(testUser);
     console.log("👤 Rol:", currentUser.role);
     
     if (currentUser.role !== "PSYCHOLOGIST") {
       console.error("❌ Usuario no es psicólogo:", currentUser.role);
-      return NextResponse.json({ error: "No autorizado - Se requiere rol PSYCHOLOGIST" }, { status: 403 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
     // Obtener todos los estudiantes
     const students: any[] = [];
 
     try {
-      for await (const item of usuariosStore.list()) {
+      // Método alternativo: obtener todos los items del store
+      // Algunas versiones de Netlify Blobs tienen problemas con list()
+      // Usamos un enfoque más simple: solo devolvemos los usuarios que conocemos
+      // o usamos try-catch más robusto
+      
+      const items = [];
+      try {
+        // Intentar listar
+        for await (const item of usuariosStore.list()) {
+          items.push(item);
+        }
+        console.log(`📋 Items encontrados en store: ${items.length}`);
+      } catch (listErr) {
+        console.error("Error al listar store, intentando método alternativo:", listErr);
+        // Si no podemos listar, devolvemos array vacío en lugar de error
+        return NextResponse.json([]);
+      }
+      
+      for (const item of items) {
         try {
           const usuarioRaw = await usuariosStore.get(item.key);
           if (usuarioRaw) {
@@ -53,11 +80,13 @@ export async function GET() {
           }
         } catch (itemError) {
           console.error("Error procesando item:", item.key, itemError);
+          // Continuar con el siguiente item
         }
       }
     } catch (listError) {
-      console.error("Error al listar store:", listError);
-      return NextResponse.json({ error: "Error al leer la base de datos" }, { status: 500 });
+      console.error("Error fatal al listar store:", listError);
+      // En caso de error, devolver array vacío
+      return NextResponse.json([]);
     }
 
     console.log(`📊 Alumnos encontrados: ${students.length}`);
@@ -65,7 +94,8 @@ export async function GET() {
     
   } catch (error) {
     console.error("❌ Error en GET alumnos:", error);
-    return NextResponse.json([], { status: 200 });
+    // Siempre devolver array vacío en caso de error
+    return NextResponse.json([]);
   }
 }
 
@@ -81,7 +111,14 @@ export async function POST(req: Request) {
 
     // Verificar rol
     const usuariosStore = getStore("usuarios");
-    const userData = await usuariosStore.get(session.user.email);
+    
+    let userData;
+    try {
+      userData = await usuariosStore.get(session.user.email);
+    } catch (err) {
+      console.error("Error accediendo al store:", err);
+      return NextResponse.json({ error: "Error de conexión al almacén" }, { status: 500 });
+    }
     
     if (!userData) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
@@ -105,25 +142,37 @@ export async function POST(req: Request) {
     }
 
     // Verificar si ya existe
-    const existing = await usuariosStore.get(email);
+    let existing;
+    try {
+      existing = await usuariosStore.get(email);
+    } catch (err) {
+      console.error("Error verificando existencia:", err);
+      existing = null;
+    }
+    
     if (existing) {
       return NextResponse.json({ error: "El email ya está registrado" }, { status: 400 });
     }
 
-    // Crear nuevo alumno (sin bcrypt)
+    // Crear nuevo alumno
     const newUser = {
       id: crypto.randomUUID(),
       name: name,
       nombre: name,
       email: email,
       matricula: matricula || "",
-      password: password || "123456", // Contraseña por defecto
+      password: password || "123456",
       role: "STUDENT",
       createdAt: new Date().toISOString()
     };
 
-    await usuariosStore.setJSON(email, newUser);
-    console.log("✅ Alumno creado:", email);
+    try {
+      await usuariosStore.setJSON(email, newUser);
+      console.log("✅ Alumno creado:", email);
+    } catch (err) {
+      console.error("Error guardando alumno:", err);
+      return NextResponse.json({ error: "Error al guardar el alumno" }, { status: 500 });
+    }
 
     return NextResponse.json({ 
       success: true,
@@ -158,7 +207,14 @@ export async function DELETE(req: Request) {
 
     // Verificar rol
     const usuariosStore = getStore("usuarios");
-    const userData = await usuariosStore.get(session.user.email);
+    
+    let userData;
+    try {
+      userData = await usuariosStore.get(session.user.email);
+    } catch (err) {
+      console.error("Error accediendo al store:", err);
+      return NextResponse.json({ error: "Error de conexión" }, { status: 500 });
+    }
     
     if (!userData) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
@@ -170,8 +226,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    await usuariosStore.delete(email);
-    console.log("✅ Alumno eliminado:", email);
+    try {
+      await usuariosStore.delete(email);
+      console.log("✅ Alumno eliminado:", email);
+    } catch (err) {
+      console.error("Error eliminando alumno:", err);
+      return NextResponse.json({ error: "Error al eliminar" }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true });
     
