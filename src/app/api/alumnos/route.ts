@@ -29,6 +29,7 @@ export async function GET() {
       }
     }
 
+    console.log(`📋 Alumnos encontrados: ${students.length}`);
     return NextResponse.json(students);
   } catch (error) {
     console.error("Error al obtener alumnos:", error);
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession();
     if (!session) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
     // Obtener rol del usuario desde el store

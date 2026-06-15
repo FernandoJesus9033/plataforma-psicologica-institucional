@@ -1,37 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FaUpload, FaFileExcel, FaSpinner, FaDownload, FaArrowLeft, FaInfoCircle } from "react-icons/fa";
 
 export default function TestBasePage() {
-  const [session, setSession] = useState<any>(null);
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [uploading, setUploading] = useState(false);
   const [testBase, setTestBase] = useState<any>(null);
   const [mensaje, setMensaje] = useState<{ texto: string; tipo: "success" | "error" } | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
 
   useEffect(() => {
-    const cargar = async () => {
-      const res = await fetch("/api/auth/session");
-      const data = await res.json();
-      if (!data?.user) { 
-        router.push("/login"); 
-        return; 
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+    if (session?.user?.role === "PSYCHOLOGIST") {
+      cargarTestBase();
+    } else if (session?.user) {
+      router.push("/dashboard");
+    }
+  }, [status, session, router]);
+
+  const cargarTestBase = async () => {
+    try {
+      const res = await fetch("/api/test/base");
+      if (res.ok) {
+        const data = await res.json();
+        setTestBase(data);
       }
-      setSession(data);
-      const testRes = await fetch("/api/test/base");
-      if (testRes.ok) setTestBase(await testRes.json());
+    } catch (error) {
+      console.error(error);
+    } finally {
       setLoading(false);
-    };
-    cargar();
-  }, [router]);
+    }
+  };
 
   const handleSubir = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     if (!file.name.endsWith('.xlsx')) {
       setMensaje({ texto: "Solo se permiten archivos .xlsx", tipo: "error" });
       return;
@@ -42,18 +53,21 @@ export default function TestBasePage() {
     formData.append("archivo", file);
 
     try {
-      const res = await fetch("/api/test/base", { 
-        method: "POST", 
-        body: formData 
+      const res = await fetch("/api/test/base", {
+        method: "POST",
+        body: formData
       });
       const data = await res.json();
+
       if (data.success) {
         setMensaje({ texto: "✅ Test base subido correctamente", tipo: "success" });
         setTestBase(data.testBase);
+        setTimeout(() => setMensaje(null), 3000);
       } else {
         setMensaje({ texto: data.error || "Error al subir", tipo: "error" });
       }
     } catch (error) {
+      console.error(error);
       setMensaje({ texto: "Error de conexión", tipo: "error" });
     } finally {
       setUploading(false);
@@ -75,7 +89,13 @@ export default function TestBasePage() {
     errorMessage: { background: '#fee2e2', color: '#dc2626', padding: '0.8rem', borderRadius: '12px', marginBottom: '1rem' }
   };
 
-  if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
+  if (status === "loading" || loading) {
+    return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
+  }
+
+  if (session?.user?.role !== "PSYCHOLOGIST") {
+    return <div style={{ textAlign: 'center', padding: '4rem' }}>Acceso no autorizado</div>;
+  }
 
   return (
     <div style={styles.container}>
@@ -86,7 +106,6 @@ export default function TestBasePage() {
         <h1 style={styles.title}>📋 Test Base</h1>
       </div>
 
-      {/* Instrucciones para la psicóloga */}
       <div style={styles.instructionsCard}>
         <div style={styles.instructionsTitle}>
           <FaInfoCircle /> Instrucciones importantes
