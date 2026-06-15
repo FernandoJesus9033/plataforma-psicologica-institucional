@@ -4,10 +4,17 @@ import { getStore } from "@netlify/blobs";
 
 export async function GET() {
   const session = await getServerSession();
-  console.log("🔍 GET /api/citas - Usuario:", session?.user?.email);
-  
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  // Obtener rol del usuario desde el store
+  const usuariosStore = getStore("usuarios");
+  const userData = await usuariosStore.get(session.user.email);
+  let userRole = "STUDENT";
+  if (userData) {
+    const parsed = JSON.parse(userData);
+    userRole = parsed.role;
   }
 
   const store = getStore("citas");
@@ -21,30 +28,27 @@ export async function GET() {
     }
   }
 
-  // Si es psicóloga, devolver todas; si es alumno, filtrar por email
-  const userRole = session.user.role;
   let resultado = citas;
   if (userRole !== "PSYCHOLOGIST") {
     resultado = citas.filter(c => c.studentEmail === session.user.email);
   }
 
-  // Formatear para el frontend (agregar hora si no existe)
   const citasFormateadas = resultado.map(c => ({
     id: c.id,
     fecha: c.fecha,
-    hora: c.hora || "12:00", // valor por defecto si no hay hora
+    hora: c.hora || "12:00",
     motivo: c.motivo || "Sin motivo",
     estado: c.estado || "PENDIENTE"
   }));
 
-  console.log(`📋 Citas devueltas: ${citasFormateadas.length}`);
+  // Ordenar por fecha más reciente
+  citasFormateadas.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+
   return NextResponse.json(citasFormateadas);
 }
 
 export async function POST(req: Request) {
   const session = await getServerSession();
-  console.log("📝 POST /api/citas - Usuario:", session?.user?.email);
-  
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
@@ -56,7 +60,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Fecha requerida" }, { status: 400 });
   }
 
-  // Extraer fecha y hora del ISO string
   const fechaObj = new Date(date);
   const fechaStr = fechaObj.toISOString().split('T')[0];
   const horaStr = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -74,7 +77,6 @@ export async function POST(req: Request) {
 
   const store = getStore("citas");
   await store.setJSON(cita.id, cita);
-  console.log("✅ Cita guardada:", cita.id);
 
   return NextResponse.json(cita, { status: 201 });
 }
@@ -94,7 +96,6 @@ export async function DELETE(req: Request) {
 
   const store = getStore("citas");
   await store.delete(id);
-  console.log("❌ Cita eliminada:", id);
 
   return NextResponse.json({ success: true });
 }

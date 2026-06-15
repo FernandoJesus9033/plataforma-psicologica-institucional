@@ -19,19 +19,22 @@ export async function GET() {
     const resultado = await store.get(item.key);
     if (resultado) {
       const parsed = JSON.parse(resultado);
-      // Solo mostrar los que tienen archivo subido
-      if (parsed.archivoUrl) {
+      // Mostrar todos los resultados subidos por estudiantes
+      if (parsed.studentEmail && parsed.archivoNombre) {
         resultados.push({
           id: parsed.id,
           studentName: parsed.studentName,
           studentEmail: parsed.studentEmail,
-          fecha: parsed.fecha,
           archivoNombre: parsed.archivoNombre,
-          procesado: parsed.procesado
+          fecha: parsed.fecha,
+          procesado: parsed.procesado || false
         });
       }
     }
   }
+
+  // Ordenar por fecha más reciente
+  resultados.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
   return NextResponse.json(resultados);
 }
