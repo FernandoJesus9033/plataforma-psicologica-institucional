@@ -12,9 +12,12 @@ export async function GET() {
   const usuariosStore = getStore("usuarios");
   const userData = await usuariosStore.get(session.user.email);
   let userRole = "STUDENT";
+  let userName = session.user.name || "Usuario";
+  
   if (userData) {
     const parsed = JSON.parse(userData);
     userRole = parsed.role;
+    userName = parsed.name;
   }
 
   const store = getStore("citas");
@@ -28,17 +31,21 @@ export async function GET() {
     }
   }
 
+  // Filtrar según rol
   let resultado = citas;
   if (userRole !== "PSYCHOLOGIST") {
     resultado = citas.filter(c => c.studentEmail === session.user.email);
   }
 
+  // Formatear para el frontend
   const citasFormateadas = resultado.map(c => ({
     id: c.id,
     fecha: c.fecha,
     hora: c.hora || "12:00",
     motivo: c.motivo || "Sin motivo",
-    estado: c.estado || "PENDIENTE"
+    estado: c.estado || "PENDIENTE",
+    studentName: c.studentName,
+    studentEmail: c.studentEmail
   }));
 
   // Ordenar por fecha más reciente
@@ -51,6 +58,15 @@ export async function POST(req: Request) {
   const session = await getServerSession();
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  // Obtener nombre del usuario
+  const usuariosStore = getStore("usuarios");
+  const userData = await usuariosStore.get(session.user.email);
+  let userName = session.user.name || "Estudiante";
+  if (userData) {
+    const parsed = JSON.parse(userData);
+    userName = parsed.name;
   }
 
   const body = await req.json();
@@ -67,7 +83,7 @@ export async function POST(req: Request) {
   const cita = {
     id: crypto.randomUUID(),
     studentEmail: session.user.email,
-    studentName: session.user.name || "Estudiante",
+    studentName: userName,
     fecha: fechaStr,
     hora: horaStr,
     motivo: motivo || "Sin motivo",

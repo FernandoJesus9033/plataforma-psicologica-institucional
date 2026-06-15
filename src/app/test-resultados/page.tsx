@@ -3,8 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { FaFileExcel, FaEye, FaDownload, FaSpinner, FaChartLine } from "react-icons/fa";
-import Link from "next/link";
+import { FaFileExcel, FaDownload, FaChartLine } from "react-icons/fa";
 
 interface Resultado {
   id: string;
@@ -55,7 +54,7 @@ export default function TestResultadosPage() {
     table: { width: '100%', borderCollapse: 'collapse' as const },
     th: { textAlign: 'left' as const, padding: '1rem', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: '600', background: '#f8fafc' },
     td: { padding: '1rem', borderBottom: '1px solid #e2e8f0', color: '#2c3e50' },
-    viewButton: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 1rem', background: '#4a90c4', color: 'white', borderRadius: '20px', textDecoration: 'none', fontSize: '0.8rem' },
+    downloadButton: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 1rem', background: '#4a90c4', color: 'white', borderRadius: '20px', textDecoration: 'none', fontSize: '0.8rem' },
     archivoBadge: (tiene: boolean) => ({
       display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.2rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '500',
       background: tiene ? '#d1fae5' : '#fef3c7', color: tiene ? '#065f46' : '#d97706'
@@ -79,7 +78,7 @@ export default function TestResultadosPage() {
           <FaChartLine style={{ color: '#4a90c4' }} />
           <h1 style={{ margin: 0 }}>Resultados del Test P-IPG</h1>
         </div>
-        <p style={styles.subtitle}>Solo psicóloga - Revisa los test completados por los alumnos</p>
+        <p style={styles.subtitle}>Revisa los test completados por los alumnos</p>
       </div>
 
       <div style={styles.card}>
@@ -113,7 +112,7 @@ export default function TestResultadosPage() {
                     </span>
                   </td>
                   <td style={styles.td}>
-                    <a href={`/api/archivos/${encodeURIComponent(r.archivoNombre)}`} download style={styles.viewButton}>
+                    <a href={`/api/archivos/${encodeURIComponent(r.archivoNombre)}`} download style={styles.downloadButton}>
                       <FaDownload /> Descargar
                     </a>
                   </td>

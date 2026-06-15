@@ -1,24 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { FaCalendarAlt, FaClock, FaUser, FaComment, FaCheckCircle, FaTimesCircle, FaSpinner, FaTrash, FaCheck } from "react-icons/fa";
 import ModalConfirmacion from "@/components/ModalConfirmacion";
 import ToastNotificacion from "@/components/ToastNotificacion";
 
 interface Cita {
   id: string;
-  date: string;
-  motivo: string | null;
-  status: string;
-  createdAt: string;
-  student: {
-    id: string;
-    name: string;
-    email: string;
-  };
+  fecha: string;
+  hora: string;
+  motivo: string;
+  estado: string;
+  studentName: string;
+  studentEmail: string;
 }
 
 export default function AgendaPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [citas, setCitas] = useState<Cita[]>([]);
   const [loading, setLoading] = useState(true);
   const [procesando, setProcesando] = useState<string | null>(null);
@@ -31,8 +32,15 @@ export default function AgendaPage() {
   };
 
   useEffect(() => {
-    cargarCitas();
-  }, []);
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+    if (session?.user?.role === "PSYCHOLOGIST") {
+      cargarCitas();
+    } else if (session?.user) {
+      router.push("/dashboard");
+    }
+  }, [status, session, router]);
 
   const cargarCitas = async () => {
     try {
@@ -48,31 +56,13 @@ export default function AgendaPage() {
     }
   };
 
-  const confirmarCita = (id: string) => {
-    setModalConfig({
-      title: "Confirmar cita",
-      message: "¿Estás seguro de que deseas confirmar esta cita? El alumno recibirá una notificación.",
-      onConfirm: () => handleConfirmar(id)
-    });
-    setModalOpen(true);
-  };
-
-  const cancelarCita = (id: string) => {
-    setModalConfig({
-      title: "Cancelar cita",
-      message: "¿Estás seguro de que deseas cancelar esta cita? Esta acción no se puede deshacer.",
-      onConfirm: () => handleCancelar(id)
-    });
-    setModalOpen(true);
-  };
-
-  const handleConfirmar = async (id: string) => {
+  const confirmarCita = async (id: string) => {
     setProcesando(id);
     try {
       const res = await fetch(`/api/citas/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "CONFIRMED" })
+        body: JSON.stringify({ estado: "CONFIRMADA" })
       });
       if (res.ok) {
         showToast("Cita confirmada correctamente", "success");
@@ -89,10 +79,10 @@ export default function AgendaPage() {
     }
   };
 
-  const handleCancelar = async (id: string) => {
+  const cancelarCita = async (id: string) => {
     setProcesando(id);
     try {
-      const res = await fetch(`/api/citas/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/citas?id=${id}`, { method: "DELETE" });
       if (res.ok) {
         showToast("Cita cancelada correctamente", "success");
         cargarCitas();
@@ -108,23 +98,33 @@ export default function AgendaPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "CONFIRMED":
+  const handleConfirmar = (id: string) => {
+    setModalConfig({
+      title: "Confirmar cita",
+      message: "¿Estás seguro de que deseas confirmar esta cita?",
+      onConfirm: () => confirmarCita(id)
+    });
+    setModalOpen(true);
+  };
+
+  const handleCancelar = (id: string) => {
+    setModalConfig({
+      title: "Cancelar cita",
+      message: "¿Estás seguro de que deseas cancelar esta cita?",
+      onConfirm: () => cancelarCita(id)
+    });
+    setModalOpen(true);
+  };
+
+  const getStatusBadge = (estado: string) => {
+    switch (estado) {
+      case "CONFIRMADA":
         return { text: "Confirmada", color: "#10b981", bg: "#d1fae5", icon: <FaCheckCircle /> };
-      case "CANCELLED":
+      case "CANCELADA":
         return { text: "Cancelada", color: "#ef4444", bg: "#fee2e2", icon: <FaTimesCircle /> };
       default:
         return { text: "Pendiente", color: "#f59e0b", bg: "#fef3c7", icon: <FaClock /> };
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return {
-      fecha: date.toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }),
-      hora: date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-    };
   };
 
   const styles = {
@@ -133,7 +133,7 @@ export default function AgendaPage() {
     title: { fontSize: '1.8rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' },
     subtitle: { color: '#64748b', fontSize: '0.9rem' },
     statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' },
-    statCard: { background: 'white', borderRadius: '16px', padding: '1rem', border: '1px solid #e2e8f0', textAlign: 'center' as const, transition: 'all 0.2s' },
+    statCard: { background: 'white', borderRadius: '16px', padding: '1rem', border: '1px solid #e2e8f0', textAlign: 'center' as const },
     statNumber: { fontSize: '2rem', fontWeight: '700', color: '#4f46e5' },
     statLabel: { fontSize: '0.8rem', color: '#64748b' },
     citasGrid: { display: 'grid', gap: '1rem' },
@@ -149,13 +149,17 @@ export default function AgendaPage() {
     emptyState: { textAlign: 'center' as const, padding: '3rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' }
   };
 
-  if (loading) {
+  if (status === "loading" || loading) {
     return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando citas...</div>;
   }
 
-  const pendientes = citas.filter(c => c.status === "PENDING").length;
-  const confirmadas = citas.filter(c => c.status === "CONFIRMED").length;
-  const hoy = citas.filter(c => new Date(c.date).toDateString() === new Date().toDateString()).length;
+  if (session?.user?.role !== "PSYCHOLOGIST") {
+    return <div style={{ textAlign: 'center', padding: '4rem' }}>Acceso no autorizado</div>;
+  }
+
+  const pendientes = citas.filter(c => c.estado === "PENDIENTE").length;
+  const confirmadas = citas.filter(c => c.estado === "CONFIRMADA").length;
+  const hoy = citas.filter(c => c.fecha === new Date().toISOString().split('T')[0]).length;
 
   return (
     <div style={styles.container}>
@@ -166,7 +170,6 @@ export default function AgendaPage() {
         <p style={styles.subtitle}>Gestiona las solicitudes de cita de los alumnos</p>
       </div>
 
-      {/* Estadísticas */}
       <div style={styles.statsGrid}>
         <div style={styles.statCard}>
           <div style={styles.statNumber}>{citas.length}</div>
@@ -186,7 +189,6 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* Lista de citas */}
       {citas.length === 0 ? (
         <div style={styles.emptyState}>
           <FaCalendarAlt style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem' }} />
@@ -196,23 +198,22 @@ export default function AgendaPage() {
       ) : (
         <div style={styles.citasGrid}>
           {citas.map((cita) => {
-            const { fecha, hora } = formatDate(cita.date);
-            const status = getStatusBadge(cita.status);
+            const status = getStatusBadge(cita.estado);
             return (
               <div key={cita.id} style={styles.citaCard}>
                 <div style={styles.citaHeader}>
                   <div style={styles.citaFecha}>
-                    <FaCalendarAlt size={14} /> {fecha}
+                    <FaCalendarAlt size={14} /> {cita.fecha}
                   </div>
                   <div style={styles.citaHora}>
-                    <FaClock size={14} /> {hora}
+                    <FaClock size={14} /> {cita.hora}
                   </div>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.6rem', borderRadius: '30px', fontSize: '0.7rem', fontWeight: '500', background: status.bg, color: status.color }}>
                     {status.icon} {status.text}
                   </span>
                 </div>
                 <div style={styles.citaAlumno}>
-                  <FaUser size={14} /> {cita.student.name} ({cita.student.email})
+                  <FaUser size={14} /> {cita.studentName} ({cita.studentEmail})
                 </div>
                 {cita.motivo && (
                   <div style={styles.citaMotivo}>
@@ -220,10 +221,10 @@ export default function AgendaPage() {
                     <span>{cita.motivo}</span>
                   </div>
                 )}
-                {cita.status === "PENDING" && (
+                {cita.estado === "PENDIENTE" && (
                   <div style={styles.buttonGroup}>
                     <button
-                      onClick={() => confirmarCita(cita.id)}
+                      onClick={() => handleConfirmar(cita.id)}
                       style={styles.confirmButton}
                       disabled={procesando === cita.id}
                     >
@@ -231,7 +232,7 @@ export default function AgendaPage() {
                       Confirmar
                     </button>
                     <button
-                      onClick={() => cancelarCita(cita.id)}
+                      onClick={() => handleCancelar(cita.id)}
                       style={styles.cancelButton}
                       disabled={procesando === cita.id}
                     >
@@ -245,7 +246,6 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {/* Modal de confirmación */}
       <ModalConfirmacion
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -257,7 +257,6 @@ export default function AgendaPage() {
         type="warning"
       />
 
-      {/* Toast de notificación */}
       <ToastNotificacion
         isOpen={toast.isOpen}
         onClose={() => setToast({ ...toast, isOpen: false })}

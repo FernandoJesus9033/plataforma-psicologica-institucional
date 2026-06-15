@@ -19,7 +19,6 @@ export async function GET() {
     const resultado = await store.get(item.key);
     if (resultado) {
       const parsed = JSON.parse(resultado);
-      // Mostrar todos los resultados subidos por estudiantes
       if (parsed.studentEmail && parsed.archivoNombre) {
         resultados.push({
           id: parsed.id,
@@ -33,8 +32,6 @@ export async function GET() {
     }
   }
 
-  // Ordenar por fecha más reciente
   resultados.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-
   return NextResponse.json(resultados);
 }
