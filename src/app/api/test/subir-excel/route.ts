@@ -4,11 +4,24 @@ import { getStore } from "@netlify/blobs";
 
 export async function POST(req: Request) {
   const session = await getServerSession();
+  console.log("🔍 Session en subir-excel:", session?.user);
+  
   if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  if (session.user.role !== "STUDENT") {
+  // Verificar rol desde el store de usuarios
+  const usuariosStore = getStore("usuarios");
+  const userData = await usuariosStore.get(session.user.email);
+  
+  if (!userData) {
+    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+  }
+  
+  const user = JSON.parse(userData);
+  console.log("🔍 Usuario encontrado:", { email: user.email, role: user.role });
+  
+  if (user.role !== "STUDENT") {
     return NextResponse.json({ error: "Solo estudiantes pueden subir test" }, { status: 403 });
   }
 
@@ -26,25 +39,29 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
-    const fileName = `${timestamp}_${session.user.email}_${file.name}`;
+    const fileName = `${timestamp}_${user.email}_${file.name}`;
     
     const store = getStore("test-resultados");
     await store.set(fileName, buffer);
 
-    // Guardar referencia del resultado
     const resultado = {
       id: crypto.randomUUID(),
-      studentEmail: session.user.email,
-      studentName: session.user.name || "Estudiante",
+      studentEmail: user.email,
+      studentName: user.name || "Estudiante",
       archivoNombre: file.name,
       archivoUrl: `/api/archivos/${fileName}`,
       fecha: new Date().toISOString(),
       procesado: false,
-      puntajes: null
+      puntajes: null,
+      percentiles: null
     };
     await store.setJSON(resultado.id, resultado);
 
-    return NextResponse.json({ success: true, message: "Test subido correctamente" });
+    return NextResponse.json({ 
+      success: true, 
+      message: "Test subido correctamente",
+      resultado 
+    });
   } catch (error) {
     console.error("Error al subir test:", error);
     return NextResponse.json({ error: "Error al subir el archivo" }, { status: 500 });

@@ -10,7 +10,7 @@ export async function GET() {
 
   const store = getStore("test-base");
   
-  // Obtener el test base activo
+  // Intentar obtener el test base activo
   let testBase = await store.get("current");
   
   if (!testBase) {
@@ -31,10 +31,12 @@ export async function GET() {
       testBase = JSON.stringify({
         id: "current",
         archivoNombre: latestFile,
-        archivoUrl: `/api/archivos/${latestFile}`,
+        archivoUrl: `/api/archivos/${encodeURIComponent(latestFile)}`,
         activo: true,
         createdAt: new Date().toISOString()
       });
+      // Guardar como current para futuras consultas
+      await store.setJSON("current", JSON.parse(testBase));
     }
   }
   
@@ -42,5 +44,8 @@ export async function GET() {
     return NextResponse.json({ error: "No hay test base disponible" }, { status: 404 });
   }
 
-  return NextResponse.json(JSON.parse(testBase));
+  const parsed = JSON.parse(testBase);
+  console.log("📦 Test base devuelto:", parsed);
+  
+  return NextResponse.json(parsed);
 }
