@@ -11,6 +11,7 @@ export default function TestPage() {
   const [testBase, setTestBase] = useState<any>(null);
   const [uploading, setUploading] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") router.push("/login");
@@ -20,10 +21,20 @@ export default function TestPage() {
   }, [status, session, router]);
 
   const cargarTestBase = async () => {
-    const res = await fetch("/api/test/base");
-    if (res.ok) {
-      const data = await res.json();
-      setTestBase(data);
+    try {
+      const res = await fetch("/api/test/base");
+      if (res.ok) {
+        const data = await res.json();
+        console.log("📦 Test base cargado:", data);
+        setTestBase(data);
+      } else {
+        setMensaje("❌ No hay test base disponible");
+      }
+    } catch (error) {
+      console.error(error);
+      setMensaje("❌ Error al cargar el test");
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -48,7 +59,8 @@ export default function TestPage() {
       if (res.ok) {
         setMensaje("✅ Test subido correctamente");
       } else {
-        setMensaje("❌ Error al subir el test");
+        const error = await res.json();
+        setMensaje(error.error || "❌ Error al subir el test");
       }
     } catch (error) {
       setMensaje("❌ Error de conexión");
@@ -65,10 +77,13 @@ export default function TestPage() {
     instructions: { fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem', lineHeight: 1.5 },
     downloadLink: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: '#4f46e5', color: 'white', borderRadius: '30px', textDecoration: 'none', marginBottom: '1rem' },
     uploadLabel: { display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: '#10b981', color: 'white', borderRadius: '30px', cursor: 'pointer' },
-    mensaje: { padding: '0.8rem', borderRadius: '12px', marginTop: '1rem', background: '#d1fae5', color: '#065f46' }
+    mensaje: { padding: '0.8rem', borderRadius: '12px', marginTop: '1rem', background: '#d1fae5', color: '#065f46' },
+    errorMensaje: { padding: '0.8rem', borderRadius: '12px', marginTop: '1rem', background: '#fee2e2', color: '#dc2626' }
   };
 
-  if (status === "loading") return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
+  if (status === "loading" || cargando) {
+    return <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>;
+  }
 
   return (
     <div style={styles.container}>
@@ -76,15 +91,18 @@ export default function TestPage() {
       
       <div style={styles.card}>
         <p style={styles.instructions}>
-          📌 Descarga el archivo Excel, complétalo y súbelo aquí.<br />
-          📌 Formato requerido: <strong>Apellido_Nombre_Matricula.xlsx</strong><br />
+          📌 Descarga el archivo Excel del test<br />
+          📌 Completa el test marcando con "1" en las columnas + y -<br />
+          📌 Guarda el archivo con el formato: <strong>Apellido_Nombre_Matricula.xlsx</strong><br />
           📌 Ejemplo: <strong>Gonzalez_Juan_2024001.xlsx</strong>
         </p>
         
-        {testBase && (
+        {testBase && testBase.archivoUrl ? (
           <a href={testBase.archivoUrl} download style={styles.downloadLink}>
-            <FaDownload /> Descargar Test ({testBase.archivoNombre})
+            <FaDownload /> Descargar Test ({testBase.archivoNombre || "Excel"})
           </a>
+        ) : (
+          <p style={{ color: '#dc2626' }}>No hay test base disponible. Contacta al psicólogo.</p>
         )}
       </div>
 
@@ -94,7 +112,11 @@ export default function TestPage() {
           <FaUpload /> {uploading ? "Subiendo..." : "Subir Excel completado"}
           <input type="file" accept=".xlsx" onChange={handleSubir} style={{ display: 'none' }} disabled={uploading} />
         </label>
-        {mensaje && <div style={styles.mensaje}>{mensaje}</div>}
+        {mensaje && (
+          <div style={mensaje.includes("✅") ? styles.mensaje : styles.errorMensaje}>
+            {mensaje}
+          </div>
+        )}
       </div>
     </div>
   );
