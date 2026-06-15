@@ -44,6 +44,13 @@ export default function AlumnosPage() {
       if (res.ok) {
         const data = await res.json();
         console.log("📋 Alumnos cargados:", data.length);
+        // Mostrar los IDs reales en consola
+        console.log("📋 IDs de alumnos:", data.map((a: Alumno) => ({ 
+          id: a.id, 
+          name: a.name,
+          tipoId: typeof a.id,
+          longitud: a.id?.length
+        })));
         setAlumnos(Array.isArray(data) ? data : []);
       } else {
         const errorData = await res.json();
@@ -65,12 +72,11 @@ export default function AlumnosPage() {
     
     setDeletingId(id);
     try {
-      console.log("🗑️ Eliminando alumno ID:", id);
+      console.log("🗑️ Eliminando alumno ID:", id, "Type:", typeof id);
       const res = await fetch(`/api/alumnos/${id}`, { method: "DELETE" });
       
       if (res.ok) {
         console.log("✅ Alumno eliminado exitosamente");
-        // Recargar la lista después de eliminar
         await cargarAlumnos();
       } else {
         const data = await res.json();
@@ -100,7 +106,8 @@ export default function AlumnosPage() {
     card: { background: 'white', borderRadius: '20px', padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'transform 0.2s, box-shadow 0.2s' },
     cardTitle: { fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.25rem' },
     cardEmail: { fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem', wordBreak: 'break-all' as const },
-    cardDate: { fontSize: '0.7rem', color: '#94a3b8', marginBottom: '1rem' },
+    cardDate: { fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.5rem' },
+    cardId: { fontSize: '0.65rem', color: '#cbd5e1', marginBottom: '1rem', fontFamily: 'monospace' },
     actions: { display: 'flex', gap: '0.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' },
     actionBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '0.3rem 0.6rem', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', transition: 'background 0.2s' },
     emptyState: { textAlign: 'center' as const, padding: '4rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' },
@@ -188,6 +195,9 @@ export default function AlumnosPage() {
               </div>
               <div style={styles.cardDate}>
                 📅 Registro: {new Date(alumno.createdAt).toLocaleDateString()}
+              </div>
+              <div style={styles.cardId}>
+                🆔 ID: {alumno.id}
               </div>
               <div style={styles.actions}>
                 <Link 
