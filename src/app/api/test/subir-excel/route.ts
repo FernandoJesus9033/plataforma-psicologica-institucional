@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
+import { getStore } from "@netlify/blobs";
 
 export async function POST(req: Request) {
   const session = await getServerSession();
@@ -10,22 +8,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
-  });
-
-  if (!user || user.role !== "STUDENT") {
+  if (session.user.role !== "STUDENT") {
     return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-  }
-
-  let student = await prisma.student.findUnique({
-    where: { email: user.email }
-  });
-
-  if (!student) {
-    student = await prisma.student.create({
-      data: { email: user.email, name: user.name || "Estudiante" }
-    });
   }
 
   try {
@@ -40,32 +24,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo se permiten archivos .xlsx" }, { status: 400 });
     }
 
+    const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const fileName = `${timestamp}_${safeName}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "tests");
-    await mkdir(uploadDir, { recursive: true });
+    
+    const store = getStore("test-resultados");
+    await store.set(fileName, buffer);
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    await writeFile(path.join(uploadDir, fileName), buffer);
-
-    const fileUrl = `/uploads/tests/${fileName}`;
-
-    await prisma.testResult.upsert({
-      where: { studentId: student.id },
-      update: {
-        archivoUrl: fileUrl,
-        archivoNombre: file.name,
-        completedAt: new Date()
-      },
-      create: {
-        studentId: student.id,
-        archivoUrl: fileUrl,
-        archivoNombre: file.name,
-        completedAt: new Date()
-      }
-    });
+    // Guardar referencia del resultado
+    const resultado = {
+      id: crypto.randomUUID(),
+      studentEmail: session.user.email,
+      studentName: session.user.name,
+      archivoNombre: file.name,
+      archivoUrl: `/api/archivos/${fileName}`,
+      fecha: new Date().toISOString(),
+      puntaje: 0 // Pendiente de cálculo
+    };
+    await store.setJSON(resultado.id, resultado);
 
     return NextResponse.json({ success: true, message: "Archivo subido correctamente" });
   } catch (error) {

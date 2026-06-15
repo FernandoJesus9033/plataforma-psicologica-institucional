@@ -15,6 +15,8 @@ export interface Cita {
 
 export async function GET() {
   const session = await getServerSession();
+  console.log("🔍 GET /api/citas - Session:", session?.user?.email, "Role:", session?.user?.role);
+  
   if (!session?.user?.email) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
@@ -30,6 +32,7 @@ export async function GET() {
         citas.push(JSON.parse(cita));
       }
     }
+    console.log(`📋 Psicóloga: ${citas.length} citas encontradas`);
     return NextResponse.json(citas);
   }
 
@@ -43,6 +46,7 @@ export async function GET() {
       }
     }
   }
+  console.log(`📋 Estudiante ${session.user.email}: ${citas.length} citas encontradas`);
 
   return NextResponse.json(citas);
 }
@@ -73,6 +77,8 @@ export async function POST(req: Request) {
 
   const store = getStore("citas");
   await store.setJSON(cita.id, cita);
+  console.log(`✅ Cita creada para ${session.user.email}: ${cita.id}`);
+  
   return NextResponse.json(cita, { status: 201 });
 }
 
@@ -99,6 +105,7 @@ export async function DELETE(req: Request) {
   const parsed = JSON.parse(cita);
   parsed.estado = "CANCELADA";
   await store.setJSON(id, parsed);
+  console.log(`❌ Cita cancelada: ${id}`);
 
   return NextResponse.json({ success: true });
 }
