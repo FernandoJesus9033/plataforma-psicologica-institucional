@@ -19,6 +19,7 @@ export default function TestResultadosPage() {
   const router = useRouter();
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -36,10 +37,16 @@ export default function TestResultadosPage() {
       const res = await fetch("/api/test-resultados");
       if (res.ok) {
         const data = await res.json();
+        console.log("📋 Resultados cargados:", data);
         setResultados(data);
+      } else if (res.status === 403) {
+        setError("No tienes permiso para ver esta página");
+      } else {
+        setError("Error al cargar los resultados");
       }
     } catch (error) {
       console.error(error);
+      setError("Error de conexión");
     } finally {
       setLoading(false);
     }
@@ -60,7 +67,8 @@ export default function TestResultadosPage() {
       background: tiene ? '#d1fae5' : '#fef3c7', color: tiene ? '#065f46' : '#d97706'
     }),
     emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#64748b' },
-    loadingState: { textAlign: 'center' as const, padding: '4rem', color: '#64748b' }
+    loadingState: { textAlign: 'center' as const, padding: '4rem', color: '#64748b' },
+    errorState: { textAlign: 'center' as const, padding: '3rem', color: '#dc2626' }
   };
 
   if (status === "loading" || loading) {
@@ -69,6 +77,10 @@ export default function TestResultadosPage() {
 
   if (session?.user?.role !== "PSYCHOLOGIST") {
     return <div style={styles.loadingState}>Acceso no autorizado</div>;
+  }
+
+  if (error) {
+    return <div style={styles.errorState}>{error}</div>;
   }
 
   return (

@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import { getStore } from "@netlify/blobs";
 import bcrypt from "bcrypt";
 
-// Obtener todos los alumnos
 export async function GET() {
   try {
     const session = await getServerSession();
@@ -11,33 +10,59 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    console.log("🔍 GET /api/alumnos - Usuario:", session.user?.email);
+
+    // Verificar que el usuario existe en el store
+    const usuariosStore = getStore("usuarios");
+    const userData = await usuariosStore.get(session.user.email);
+    
+    if (!userData) {
+      console.error("❌ Usuario no encontrado en store:", session.user.email);
+      return NextResponse.json({ error: "Usuario no encontrado en el sistema" }, { status: 404 });
+    }
+    
+    const currentUser = JSON.parse(userData);
+    if (currentUser.role !== "PSYCHOLOGIST") {
+      console.error("❌ Usuario no es psicólogo:", currentUser.role);
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const store = getStore("usuarios");
     const students: any[] = [];
 
-    for await (const item of store.list()) {
-      const usuario = await store.get(item.key);
-      if (usuario) {
-        const parsed = JSON.parse(usuario);
-        if (parsed.role === "STUDENT") {
-          students.push({
-            id: parsed.id,
-            name: parsed.name,
-            email: parsed.email,
-            createdAt: parsed.createdAt
-          });
+    try {
+      for await (const item of store.list()) {
+        try {
+          const usuario = await store.get(item.key);
+          if (usuario) {
+            const parsed = JSON.parse(usuario);
+            if (parsed.role === "STUDENT") {
+              students.push({
+                id: parsed.id,
+                name: parsed.name || "Sin nombre",
+                email: parsed.email,
+                createdAt: parsed.createdAt || new Date().toISOString()
+              });
+            }
+          }
+        } catch (itemError) {
+          console.error("Error procesando item:", item.key, itemError);
+          // Continuar con el siguiente item
         }
       }
+    } catch (listError) {
+      console.error("Error al listar store:", listError);
+      return NextResponse.json({ error: "Error al leer la base de datos" }, { status: 500 });
     }
 
     console.log(`📋 Alumnos encontrados: ${students.length}`);
     return NextResponse.json(students);
   } catch (error) {
-    console.error("Error al obtener alumnos:", error);
-    return NextResponse.json({ error: "Error al obtener alumnos" }, { status: 500 });
+    console.error("Error en GET alumnos:", error);
+    return NextResponse.json({ error: "Error interno del servidor: " + (error as Error).message }, { status: 500 });
   }
 }
 
-// Crear nuevo alumno
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
@@ -50,10 +75,11 @@ export async function POST(req: Request) {
     const userData = await usuariosStore.get(session.user.email);
     
     if (!userData) {
-      return NextResponse.json({ error: "Usuario no encontrado en store" }, { status: 404 });
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
     
     const currentUser = JSON.parse(userData);
+    console.log("🔍 Usuario actual:", { email: currentUser.email, role: currentUser.role });
     
     if (currentUser.role !== "PSYCHOLOGIST") {
       return NextResponse.json({ 
@@ -90,6 +116,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ id: newUser.id, name, email }, { status: 201 });
   } catch (error) {
     console.error("Error al crear alumno:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return NextResponse.json({ error: "Error interno: " + (error as Error).message }, { status: 500 });
   }
 }
