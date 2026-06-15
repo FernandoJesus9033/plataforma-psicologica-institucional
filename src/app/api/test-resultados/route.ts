@@ -4,7 +4,7 @@ import { getStore } from "@netlify/blobs";
 
 export async function GET() {
   const session = await getServerSession();
-  if (!session?.user?.email) {
+  if (!session) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
@@ -13,20 +13,25 @@ export async function GET() {
   }
 
   const store = getStore("test-resultados");
-  const resultados: any[] = [];
+  const resultados = [];
 
   for await (const item of store.list()) {
     const resultado = await store.get(item.key);
     if (resultado) {
       const parsed = JSON.parse(resultado);
-      // Solo incluir si hay datos del estudiante (por compatibilidad)
-      if (parsed.studentName || parsed.studentEmail) {
-        resultados.push(parsed);
+      // Solo mostrar los que tienen archivo subido
+      if (parsed.archivoUrl) {
+        resultados.push({
+          id: parsed.id,
+          studentName: parsed.studentName,
+          studentEmail: parsed.studentEmail,
+          fecha: parsed.fecha,
+          archivoNombre: parsed.archivoNombre,
+          procesado: parsed.procesado
+        });
       }
     }
   }
 
-  return NextResponse.json(resultados.sort((a, b) => 
-    new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
-  ));
+  return NextResponse.json(resultados);
 }

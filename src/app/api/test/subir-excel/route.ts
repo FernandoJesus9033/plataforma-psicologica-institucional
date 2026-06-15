@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   }
 
   if (session.user.role !== "STUDENT") {
-    return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+    return NextResponse.json({ error: "Solo estudiantes pueden subir test" }, { status: 403 });
   }
 
   try {
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const file = formData.get("archivo") as File;
     
     if (!file) {
-      return NextResponse.json({ error: "No se recibió ningún archivo" }, { status: 400 });
+      return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
     }
 
     if (!file.name.endsWith('.xlsx')) {
@@ -26,8 +26,7 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
-    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const fileName = `${timestamp}_${safeName}`;
+    const fileName = `${timestamp}_${session.user.email}_${file.name}`;
     
     const store = getStore("test-resultados");
     await store.set(fileName, buffer);
@@ -36,17 +35,18 @@ export async function POST(req: Request) {
     const resultado = {
       id: crypto.randomUUID(),
       studentEmail: session.user.email,
-      studentName: session.user.name,
+      studentName: session.user.name || "Estudiante",
       archivoNombre: file.name,
       archivoUrl: `/api/archivos/${fileName}`,
       fecha: new Date().toISOString(),
-      puntaje: 0 // Pendiente de cálculo
+      procesado: false,
+      puntajes: null
     };
     await store.setJSON(resultado.id, resultado);
 
-    return NextResponse.json({ success: true, message: "Archivo subido correctamente" });
+    return NextResponse.json({ success: true, message: "Test subido correctamente" });
   } catch (error) {
-    console.error("Error al subir archivo:", error);
+    console.error("Error al subir test:", error);
     return NextResponse.json({ error: "Error al subir el archivo" }, { status: 500 });
   }
 }
