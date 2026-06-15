@@ -20,6 +20,7 @@ export default function AlumnosPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -42,7 +43,7 @@ export default function AlumnosPage() {
       
       if (res.ok) {
         const data = await res.json();
-        console.log("📋 Alumnos:", data);
+        console.log("📋 Alumnos cargados:", data.length);
         setAlumnos(Array.isArray(data) ? data : []);
       } else {
         const errorData = await res.json();
@@ -59,24 +60,27 @@ export default function AlumnosPage() {
     }
   };
 
-  const handleDelete = async (email: string, name: string) => {
-    if (!confirm(`¿Eliminar a ${name}?`)) return;
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`¿Eliminar a ${name}? Esta acción no se puede deshacer.`)) return;
     
+    setDeletingId(id);
     try {
-      const res = await fetch(`/api/alumnos?email=${encodeURIComponent(email)}`, {
-        method: "DELETE"
-      });
+      console.log("🗑️ Eliminando alumno ID:", id);
+      const res = await fetch(`/api/alumnos/${id}`, { method: "DELETE" });
       
       if (res.ok) {
-        console.log("✅ Alumno eliminado");
+        console.log("✅ Alumno eliminado exitosamente");
+        // Recargar la lista después de eliminar
         await cargarAlumnos();
       } else {
         const data = await res.json();
         alert(data.error || "Error al eliminar");
       }
     } catch (error) {
-      console.error(error);
+      console.error("❌ Error:", error);
       alert("Error de conexión");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -86,35 +90,44 @@ export default function AlumnosPage() {
   );
 
   const styles = {
-    container: { maxWidth: '1200px', margin: '0 auto' },
+    container: { maxWidth: '1200px', margin: '0 auto', padding: '2rem' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap' as const, gap: '1rem' },
     title: { fontSize: '1.8rem', fontWeight: '600', color: '#1e293b', margin: 0 },
-    newButton: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: '#4f46e5', color: 'white', borderRadius: '40px', textDecoration: 'none', fontWeight: '500', fontSize: '0.9rem' },
-    searchBox: { display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: '40px', padding: '0.4rem 1rem' },
+    newButton: { display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: '#4f46e5', color: 'white', borderRadius: '40px', textDecoration: 'none', fontWeight: '500', fontSize: '0.9rem', transition: 'background 0.2s' },
+    searchBox: { display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'white', border: '1px solid #e2e8f0', borderRadius: '40px', padding: '0.4rem 1rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
     searchInput: { border: 'none', outline: 'none', fontSize: '0.9rem', width: '220px', background: 'transparent' },
     grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' },
-    card: { background: 'white', borderRadius: '20px', padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' },
+    card: { background: 'white', borderRadius: '20px', padding: '1.25rem', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', transition: 'transform 0.2s, box-shadow 0.2s' },
     cardTitle: { fontSize: '1.1rem', fontWeight: '600', color: '#1e293b', marginBottom: '0.25rem' },
-    cardEmail: { fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem' },
+    cardEmail: { fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem', wordBreak: 'break-all' as const },
     cardDate: { fontSize: '0.7rem', color: '#94a3b8', marginBottom: '1rem' },
     actions: { display: 'flex', gap: '0.5rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' },
-    actionBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', padding: '0.3rem 0.6rem', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '0.3rem' },
-    emptyState: { textAlign: 'center' as const, padding: '3rem', color: '#64748b' },
-    errorBox: { background: '#fee2e2', color: '#dc2626', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', textAlign: 'center' as const }
+    actionBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', padding: '0.3rem 0.6rem', borderRadius: '30px', display: 'flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none', transition: 'background 0.2s' },
+    emptyState: { textAlign: 'center' as const, padding: '4rem', background: 'white', borderRadius: '20px', border: '1px solid #e2e8f0', color: '#64748b' },
+    errorBox: { background: '#fee2e2', color: '#dc2626', padding: '1rem', borderRadius: '12px', marginBottom: '1rem', textAlign: 'center' as const },
+    loadingState: { textAlign: 'center' as const, padding: '4rem', color: '#64748b' }
   };
 
   if (status === "loading" || loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem' }}>
-        <FaSpinner className="animate-spin text-4xl text-indigo-600 mx-auto" />
-        <p className="mt-2">Cargando alumnos...</p>
+      <div style={styles.loadingState}>
+        <FaSpinner className="animate-spin" style={{ fontSize: '2.5rem', marginBottom: '1rem', color: '#4f46e5' }} />
+        <p>Cargando alumnos...</p>
+        <style jsx>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          .animate-spin {
+            animation: spin 1s linear infinite;
+          }
+        `}</style>
       </div>
     );
   }
 
   if (session?.user?.role !== "PSYCHOLOGIST") {
     return (
-      <div style={{ textAlign: 'center', padding: '4rem' }}>
+      <div style={styles.loadingState}>
         <p>Acceso no autorizado. Solo psicólogos pueden ver esta página.</p>
       </div>
     );
@@ -152,31 +165,50 @@ export default function AlumnosPage() {
 
       {filteredAlumnos.length === 0 && !error ? (
         <div style={styles.emptyState}>
-          {searchTerm ? "No se encontraron alumnos" : "No hay alumnos registrados"}
+          <FaUserGraduate style={{ fontSize: '3rem', color: '#cbd5e1', marginBottom: '1rem' }} />
+          <p>{searchTerm ? "No se encontraron alumnos" : "No hay alumnos registrados"}</p>
+          {!searchTerm && (
+            <Link href="/alumnos/nuevo" style={{ ...styles.newButton, display: 'inline-flex', marginTop: '1rem' }}>
+              <FaPlus /> Crear primer alumno
+            </Link>
+          )}
         </div>
       ) : (
         <div style={styles.grid}>
-          {filteredAlumnos.map(alumno => (
+          {filteredAlumnos.map((alumno) => (
             <div key={alumno.id} style={styles.card}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '40px', background: '#eef2ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
-                  <FaUserGraduate />
+                  <FaUserGraduate size={20} />
                 </div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={styles.cardTitle}>{alumno.name}</div>
                   <div style={styles.cardEmail}>{alumno.email}</div>
                 </div>
               </div>
-              <div style={styles.cardDate}>Registro: {new Date(alumno.createdAt).toLocaleDateString()}</div>
+              <div style={styles.cardDate}>
+                📅 Registro: {new Date(alumno.createdAt).toLocaleDateString()}
+              </div>
               <div style={styles.actions}>
-                <Link href={`/alumnos/${alumno.id}`} style={{ ...styles.actionBtn, color: '#4f46e5' }}>
-                  <FaEye /> Ver
+                <Link 
+                  href={`/alumnos/${alumno.id}`} 
+                  style={{ ...styles.actionBtn, color: '#4f46e5', background: '#eef2ff' }}
+                >
+                  <FaEye size={12} /> Ver
                 </Link>
-                <Link href={`/alumnos/${alumno.id}/editar`} style={{ ...styles.actionBtn, color: '#f59e0b' }}>
-                  <FaEdit /> Editar
+                <Link 
+                  href={`/alumnos/${alumno.id}/editar`} 
+                  style={{ ...styles.actionBtn, color: '#f59e0b', background: '#fef3c7' }}
+                >
+                  <FaEdit size={12} /> Editar
                 </Link>
-                <button onClick={() => handleDelete(alumno.email, alumno.name)} style={{ ...styles.actionBtn, color: '#ef4444' }}>
-                  <FaTrash /> Eliminar
+                <button 
+                  onClick={() => handleDelete(alumno.id, alumno.name)} 
+                  style={{ ...styles.actionBtn, color: '#ef4444', background: '#fee2e2' }}
+                  disabled={deletingId === alumno.id}
+                >
+                  {deletingId === alumno.id ? <FaSpinner className="animate-spin" size={12} /> : <FaTrash size={12} />} 
+                  Eliminar
                 </button>
               </div>
             </div>
@@ -187,6 +219,9 @@ export default function AlumnosPage() {
       <style jsx>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>
