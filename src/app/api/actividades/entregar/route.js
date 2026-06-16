@@ -1,135 +1,96 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
-import { writeFile, mkdir } from "fs/promises";
+import { prisma } from "@/lib/prisma";
+import fs from "fs/promises";
 import path from "path";
 
-// GET: Obtener entregas del estudiante
-export async function GET(req) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+// ✅ Directorio fuera de public/
+const UPLOADS_DIR = path.join(process.cwd(), "uploads", "entregas");
+
+// Asegurar que el directorio existe
+async function ensureUploadsDir() {
+  try {
+    await fs.access(UPLOADS_DIR);
+  } catch {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
   }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-
-  const student = await prisma.student.findUnique({
-    where: { email: user.email }
-  });
-
-  if (!student) {
-    return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
-  }
-
-  const entregas = await prisma.activity.findMany({
-    where: { studentId: student.id, entregadoEn: { not: null } },
-    orderBy: { entregadoEn: "desc" }
-  });
-
-  return NextResponse.json(entregas);
 }
 
-// POST: Subir una entrega (alumno)
 export async function POST(req) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
-  });
-
-  if (!user) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-
-  const student = await prisma.student.findUnique({
-    where: { email: user.email }
-  });
-
-  if (!student) {
-    return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
-  }
-
   try {
-    const formData = await req.formData();
-    
-    // 🔍 Depuración: ver qué campos llegan
-    console.log("📥 Campos recibidos:", Array.from(formData.keys()));
-
-    const file = formData.get("file");
-    
-    // ✅ Aceptar múltiples nombres para el ID de actividad
-    const activityId = formData.get("activityId") || 
-                       formData.get("id") || 
-                       formData.get("activity_id") ||
-                       formData.get("actividadId");
-
-    if (!file || !activityId) {
-      console.log("❌ Faltan datos:", { file: !!file, activityId });
-      return NextResponse.json(
-        { error: "Faltan archivo o ID de actividad. Campos recibidos: " + Array.from(formData.keys()).join(", ") },
-        { status: 400 }
-      );
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    // Verificar que la actividad pertenece al estudiante
-    const actividad = await prisma.activity.findFirst({
-      where: { id: activityId, studentId: student.id }
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    const formData = await req.formData();
+    const file = formData.get("archivo");
+    const actividadId = formData.get("actividadId");
+
+    if (!file || !actividadId) {
+      return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
+    }
+
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "Archivo no válido" }, { status: 400 });
+    }
+
+    // Verificar que la actividad existe y pertenece al estudiante
+    const actividad = await prisma.activity.findUnique({
+      where: { id: actividadId }
     });
 
     if (!actividad) {
-      return NextResponse.json({ error: "Actividad no encontrada o no te pertenece" }, { status: 404 });
+      return NextResponse.json({ error: "Actividad no encontrada" }, { status: 404 });
     }
 
-    // Validar tamaño del archivo (10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "El archivo no debe superar los 10MB" }, { status: 400 });
+    if (actividad.studentId !== currentUser.id && currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
-    // Subir archivo
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    const uploadDir = path.join(process.cwd(), "public/uploads/entregas");
-    await mkdir(uploadDir, { recursive: true });
-
+    // Guardar archivo en disco (fuera de public/)
+    await ensureUploadsDir();
+    const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
-    const originalName = file.name;
-    const ext = path.extname(originalName);
-    const safeName = `${timestamp}${ext}`;
-    const filePath = path.join(uploadDir, safeName);
+    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const fileName = `${timestamp}_${safeName}`;
+    const filePath = path.join(UPLOADS_DIR, fileName);
+    
+    await fs.writeFile(filePath, buffer);
 
-    await writeFile(filePath, buffer);
+    // ✅ URL protegida (usa /api/archivos/)
+    const fileUrl = `/api/archivos/${encodeURIComponent(fileName)}`;
 
-    const fileUrl = `/uploads/entregas/${safeName}`;
-
-    // Actualizar la actividad con la entrega
-    const updated = await prisma.activity.update({
-      where: { id: activityId },
+    // Actualizar la actividad en la base de datos
+    await prisma.activity.update({
+      where: { id: actividadId },
       data: {
         entregaUrl: fileUrl,
-        entregaNombre: originalName,
+        entregaNombre: file.name,
         entregaTipo: file.type,
-        entregadoEn: new Date(),
-        status: "ENTREGADA"
+        entregadoEn: new Date()
       }
     });
 
-    console.log("✅ Entrega registrada para actividad:", activityId);
-    return NextResponse.json({ success: true, actividad: updated });
+    console.log("✅ Entrega subida:", fileName, "por", currentUser.email);
+
+    return NextResponse.json({
+      success: true,
+      url: fileUrl,
+      name: file.name,
+      type: file.type
+    });
+
   } catch (error) {
-    console.error("❌ Error al subir entrega:", error);
-    return NextResponse.json(
-      { error: "Error al subir entrega: " + error.message },
-      { status: 500 }
-    );
+    console.error("Error al subir entrega:", error);
+    return NextResponse.json({ error: "Error al subir la entrega" }, { status: 500 });
   }
 }
