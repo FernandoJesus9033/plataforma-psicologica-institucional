@@ -18,7 +18,6 @@ export async function GET(
 
     const { nombre } = await params;
     const decodedNombre = decodeURIComponent(nombre);
-    console.log("📥 Buscando archivo:", decodedNombre);
 
     // Validar que el nombre no contenga path traversal (seguridad)
     const safeName = path.basename(decodedNombre);
@@ -26,7 +25,6 @@ export async function GET(
     
     // Verificar que el archivo esté dentro del directorio de uploads (seguridad)
     if (!filePath.startsWith(UPLOADS_DIR)) {
-      console.error("❌ Intento de path traversal detectado:", decodedNombre);
       return NextResponse.json({ error: "Nombre de archivo inválido" }, { status: 400 });
     }
 
@@ -34,7 +32,6 @@ export async function GET(
     try {
       await fs.access(filePath);
     } catch {
-      console.error("❌ Archivo no encontrado:", filePath);
       return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
     }
 
@@ -61,7 +58,10 @@ export async function GET(
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${encodeURIComponent(decodedNombre)}"`,
-        "Cache-Control": "public, max-age=31536000"
+        // ✅ Cache-Control: private (no público)
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0"
       }
     });
     

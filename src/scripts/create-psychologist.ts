@@ -1,12 +1,16 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcrypt'
+import crypto from 'crypto'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  const email = "psicologo@ejemplo.com"
-  const password = "psicologo123"
-  const name = "Psicólogo Principal"
+  const email = process.env.PSYCHOLOGIST_EMAIL || "psicologo@ejemplo.com"
+  
+  // ✅ Generar contraseña segura desde variable de entorno o crear una aleatoria
+  const password = process.env.PSYCHOLOGIST_PASSWORD || crypto.randomBytes(16).toString('hex')
+  
+  const name = process.env.PSYCHOLOGIST_NAME || "Psicólogo Principal"
   const role = "PSYCHOLOGIST"
 
   const existingUser = await prisma.user.findUnique({
@@ -29,7 +33,11 @@ async function main() {
     }
   })
 
-  console.log("✅ Psicólogo creado exitosamente:", { email: user.email, role: user.role })
+  console.log("✅ Psicólogo creado exitosamente:", { 
+    email: user.email, 
+    role: user.role,
+    password: process.env.PSYCHOLOGIST_PASSWORD ? "🔒 Usando variable de entorno" : `🔑 Contraseña generada: ${password}`
+  })
 }
 
 main()
