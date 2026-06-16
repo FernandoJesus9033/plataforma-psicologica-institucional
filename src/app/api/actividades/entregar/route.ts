@@ -4,10 +4,8 @@ import { prisma } from "@/lib/prisma";
 import fs from "fs/promises";
 import path from "path";
 
-// ✅ Directorio fuera de public/
 const UPLOADS_DIR = path.join(process.cwd(), "uploads", "entregas");
 
-// Asegurar que el directorio existe
 async function ensureUploadsDir() {
   try {
     await fs.access(UPLOADS_DIR);
@@ -16,15 +14,16 @@ async function ensureUploadsDir() {
   }
 }
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
+    const userEmail = session.user.email;
     const currentUser = await prisma.user.findUnique({
-      where: { email: session.user.email }
+      where: { email: userEmail }
     });
 
     if (!currentUser) {
@@ -32,10 +31,15 @@ export async function POST(req) {
     }
 
     const formData = await req.formData();
-    const file = formData.get("archivo");
-    const actividadId = formData.get("actividadId");
+    const file = formData.get("archivo") as File;
+    const actividadId = formData.get("actividadId") as string;
+
+    console.log("📝 Entregar - actividadId:", actividadId);
+    console.log("📝 Entregar - file:", file?.name);
+    console.log("📝 Entregar - currentUser.id:", currentUser.id);
 
     if (!file || !actividadId) {
+      console.error("❌ Faltan datos:", { file: !!file, actividadId });
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
     }
 
@@ -43,7 +47,7 @@ export async function POST(req) {
       return NextResponse.json({ error: "Archivo no válido" }, { status: 400 });
     }
 
-    // Verificar que la actividad existe y pertenece al estudiante
+    // Verificar que la actividad existe
     const actividad = await prisma.activity.findUnique({
       where: { id: actividadId }
     });
@@ -52,8 +56,24 @@ export async function POST(req) {
       return NextResponse.json({ error: "Actividad no encontrada" }, { status: 404 });
     }
 
-    if (actividad.studentId !== currentUser.id && currentUser.role !== "PSYCHOLOGIST") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    console.log("📝 actividad.studentId:", actividad.studentId);
+
+    // ✅ Verificar que el usuario sea el estudiante asignado o psicólogo
+    // Buscar al estudiante por email para obtener su ID correcto
+    const estudiante = await prisma.student.findUnique({
+      where: { email: userEmail },
+      select: { id: true }
+    });
+
+    if (!estudiante) {
+      return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
+    }
+
+    console.log("📝 estudiante.id:", estudiante.id);
+
+    // ✅ Comparar con el ID del estudiante en la actividad
+    if (actividad.studentId !== estudiante.id && currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado para entregar esta actividad" }, { status: 403 });
     }
 
     // Guardar archivo en disco (fuera de public/)
@@ -80,7 +100,7 @@ export async function POST(req) {
       }
     });
 
-    console.log("✅ Entrega subida:", fileName, "por", currentUser.email);
+    console.log("✅ Entrega subida:", fileName);
 
     return NextResponse.json({
       success: true,

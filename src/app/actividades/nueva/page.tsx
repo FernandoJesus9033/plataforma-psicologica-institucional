@@ -12,7 +12,7 @@ export default function NuevaActividadPage() {
   const [description, setDescription] = useState("");
   const [studentId, setStudentId] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [fileData, setFileData] = useState({ url: "", name: "", type: "" });
+  const [fileData, setFileData] = useState({ url: "", name: "", type: "", file: null as File | null });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -29,7 +29,25 @@ export default function NuevaActividadPage() {
     e.preventDefault();
     setSaving(true);
     setError("");
+    
+    if (!title) {
+      setError("El título es requerido");
+      setSaving(false);
+      return;
+    }
+    if (!studentId) {
+      setError("Debes seleccionar un alumno");
+      setSaving(false);
+      return;
+    }
+    if (!dueDate) {
+      setError("La fecha límite es requerida");
+      setSaving(false);
+      return;
+    }
+
     try {
+      // ✅ 1. Crear la actividad primero
       const res = await fetch("/api/actividades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,14 +55,38 @@ export default function NuevaActividadPage() {
           title,
           description,
           studentId,
-          dueDate: dueDate || null,
-          fileUrl: fileData.url,
-          fileName: fileData.name,
-          fileType: fileData.type
+          dueDate: new Date(dueDate).toISOString(),
+          fileUrl: null,
+          fileName: null,
+          fileType: null
         })
       });
+      
       const data = await res.json();
+      
       if (res.ok) {
+        const actividadId = data.id;
+        console.log("✅ Actividad creada con ID:", actividadId);
+        
+        // ✅ 2. Si hay un archivo, subirlo con el actividadId
+        if (fileData.file) {
+          const formData = new FormData();
+          formData.append("archivo", fileData.file);
+          formData.append("actividadId", actividadId);
+          
+          const uploadRes = await fetch("/api/actividades/upload", {
+            method: "POST",
+            body: formData
+          });
+          
+          if (!uploadRes.ok) {
+            const uploadError = await uploadRes.json();
+            console.warn("⚠️ Archivo no subido:", uploadError.error);
+          } else {
+            console.log("✅ Archivo subido correctamente");
+          }
+        }
+        
         router.push("/actividades");
       } else {
         setError(data.error || "Error al crear actividad");
@@ -96,8 +138,8 @@ export default function NuevaActividadPage() {
             </select>
           </div>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Fecha límite</label>
-            <input type="date" style={styles.input} value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <label style={styles.label}>Fecha límite *</label>
+            <input type="date" style={styles.input} value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
           </div>
           <div style={styles.formGroup}>
             <label style={styles.label}><FaFileAlt /> Archivo adjunto</label>

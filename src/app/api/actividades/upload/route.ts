@@ -16,7 +16,7 @@ async function ensureUploadsDir() {
   }
 }
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const session = await getServerSession();
     if (!session?.user?.email) {
@@ -32,10 +32,15 @@ export async function POST(req) {
     }
 
     const formData = await req.formData();
-    const file = formData.get("archivo");
-    const actividadId = formData.get("actividadId");
+    const file = formData.get("archivo") as File;
+    const actividadId = formData.get("actividadId") as string;
+
+    // ✅ Log para depuración
+    console.log("📝 Upload - actividadId:", actividadId);
+    console.log("📝 Upload - file:", file?.name);
 
     if (!file || !actividadId) {
+      console.error("❌ Faltan datos:", { file: !!file, actividadId });
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
     }
 

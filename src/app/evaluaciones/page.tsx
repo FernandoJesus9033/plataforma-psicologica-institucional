@@ -69,18 +69,38 @@ export default function EvaluacionesPage() {
     }
   };
 
+  // ✅ HANDLE SUBMIT CORREGIDO
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch("/api/eval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ studentId: selectedStudent, score: parseInt(score) })
-    });
-    if (res.ok) {
-      setSelectedStudent("");
-      setScore("");
-      setShowForm(false);
-      loadData();
+    
+    if (!selectedStudent || !score) {
+      alert("Por favor, selecciona un alumno y un puntaje");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/eval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          studentId: selectedStudent, 
+          score: parseInt(score),
+          status: "GREEN"
+        })
+      });
+
+      if (res.ok) {
+        setSelectedStudent("");
+        setScore("");
+        setShowForm(false);
+        loadData();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Error al guardar la evaluación");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error de conexión");
     }
   };
 

@@ -13,6 +13,16 @@ export async function GET(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // Verificar que el usuario sea psicólogo
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true }
+    });
+
+    if (!currentUser || currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado. Solo psicólogos pueden ver alumnos" }, { status: 403 });
+    }
+
     const { id } = await params;
     console.log("🔍 Buscando alumno con ID:", id);
     
@@ -23,7 +33,7 @@ export async function GET(
           { id: id },
           { email: id }
         ],
-        role: "STUDENT" // Solo estudiantes
+        role: "STUDENT"
       },
       select: {
         id: true,
@@ -76,6 +86,16 @@ export async function PUT(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // Verificar que el usuario sea psicólogo
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true }
+    });
+
+    if (!currentUser || currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado. Solo psicólogos pueden editar alumnos" }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await req.json();
     const { name, email, matricula, notes } = body;
@@ -102,7 +122,7 @@ export async function PUT(
     const alumnoActualizado = await prisma.user.update({
       where: { id: alumnoExistente.id },
       data: {
-        name: name,
+        name: name || alumnoExistente.name,
         email: email || alumnoExistente.email
       }
     });
@@ -143,6 +163,16 @@ export async function DELETE(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    // ✅ Incluir id en el select para poder comparar
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true }
+    });
+
+    if (!currentUser || currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado. Solo psicólogos pueden eliminar alumnos" }, { status: 403 });
+    }
+
     const { id } = await params;
     console.log("🗑️ Eliminando alumno con ID:", id);
     
@@ -160,6 +190,11 @@ export async function DELETE(
     if (!alumno) {
       console.log("❌ Alumno no encontrado para eliminar:", id);
       return NextResponse.json({ error: "Alumno no encontrado" }, { status: 404 });
+    }
+    
+    // ✅ Verificar que el usuario no esté intentando eliminarse a sí mismo
+    if (alumno.id === currentUser.id) {
+      return NextResponse.json({ error: "No puedes eliminarte a ti mismo" }, { status: 403 });
     }
     
     // Eliminar en orden (primero registros relacionados, luego el usuario)

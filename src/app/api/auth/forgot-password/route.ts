@@ -16,6 +16,7 @@ export async function POST(req: Request) {
       where: { email }
     });
 
+    // ✅ No revelar si el usuario existe o no (seguridad)
     if (!user) {
       return NextResponse.json({ 
         success: true, 
@@ -37,18 +38,31 @@ export async function POST(req: Request) {
     const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
     const resetUrl = `${baseUrl}/reset-password?token=${resetToken}`;
 
-    // ✅ Configurar nodemailer con variables de entorno
+    // ✅ Verificar que las variables de entorno de correo estén configuradas
+    const emailUser = process.env.EMAIL_USER;
+    const emailPass = process.env.EMAIL_PASS;
+
+    if (!emailUser || !emailPass) {
+      console.warn("⚠️ Variables de correo no configuradas. Enlace de recuperación (solo desarrollo):", resetUrl);
+      return NextResponse.json({ 
+        success: true, 
+        message: "En desarrollo: Revisa la consola para obtener el enlace de restablecimiento.",
+        resetUrl: process.env.NODE_ENV === "development" ? resetUrl : undefined
+      });
+    }
+
+    // Configurar nodemailer con variables de entorno
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_SERVER || "smtp.gmail.com",
       port: parseInt(process.env.EMAIL_PORT || "587"),
       secure: false,
       auth: {
-        user: process.env.EMAIL_USER || "tu-correo@gmail.com",
-        pass: process.env.EMAIL_PASS || "tu-contraseña"
+        user: emailUser,
+        pass: emailPass
       }
     });
 
-    // ✅ Enviar correo
+    // Enviar correo
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || "noreply@tu-dominio.com",
       to: email,

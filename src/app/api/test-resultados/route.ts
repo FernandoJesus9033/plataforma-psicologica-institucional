@@ -52,17 +52,29 @@ export async function GET() {
       }
     });
 
-    // Formatear los resultados para el frontend
-    const resultados = resultadosDB.map(r => ({
-      id: r.id,
-      studentName: r.student.name || "Estudiante",
-      studentEmail: r.student.email,
-      archivoNombre: r.archivoNombre || "Test completado",
-      fecha: r.completedAt.toISOString(),
-      procesado: true
-    }));
+    // ✅ Formatear los resultados para el frontend (incluyendo archivoUrl)
+    const resultados = resultadosDB.map(r => {
+      let archivoNombre = r.archivoNombre || "Test completado";
+      let archivoUrl = r.archivoUrl || null;
+      
+      // ✅ Si no hay URL, construirla desde el nombre
+      if (!archivoUrl && archivoNombre) {
+        archivoUrl = `/api/archivos/${encodeURIComponent(archivoNombre)}`;
+      }
+      
+      return {
+        id: r.id,
+        studentName: r.student.name || "Estudiante",
+        studentEmail: r.student.email,
+        archivoNombre: archivoNombre,
+        archivoUrl: archivoUrl,
+        fecha: r.completedAt.toISOString(),
+        procesado: true
+      };
+    });
 
     console.log(`📊 Resultados encontrados: ${resultados.length}`);
+    console.log(`📊 Primer resultado: ${JSON.stringify(resultados[0])}`);
     return NextResponse.json(resultados);
     
   } catch (error) {

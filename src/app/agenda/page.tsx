@@ -248,6 +248,9 @@ export default function AgendaPage() {
         <div style={styles.citasGrid}>
           {citas.map((cita) => {
             const statusBadge = getStatusBadge(cita.estado);
+            // ✅ CORREGIDO: Comparación con "PENDING"
+            const isPending = cita.estado?.toUpperCase() === "PENDING";
+            
             return (
               <div key={cita.id} style={styles.citaCard}>
                 <div style={styles.citaHeader}>
@@ -270,7 +273,7 @@ export default function AgendaPage() {
                     <span>{cita.motivo}</span>
                   </div>
                 )}
-                {cita.estado === "PENDIENTE" && (
+                {isPending && (
                   <div style={styles.buttonGroup}>
                     <button
                       onClick={() => handleConfirmar(cita.id)}

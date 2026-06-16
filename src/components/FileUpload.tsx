@@ -4,13 +4,13 @@ import { useState, useRef } from "react";
 import { FaUpload, FaFile, FaTrash, FaSpinner } from "react-icons/fa";
 
 interface FileUploadProps {
-  onFileUploaded: (fileData: { url: string; name: string; type: string }) => void;
+  onFileUploaded: (fileData: { url: string; name: string; type: string; file: File | null }) => void;
   initialFile?: { url: string; name: string } | null;
 }
 
 export default function FileUpload({ onFileUploaded, initialFile }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
-  const [fileInfo, setFileInfo] = useState<{ url: string; name: string } | null>(initialFile || null);
+  const [fileInfo, setFileInfo] = useState<{ url: string; name: string; file: File | null }>({ url: "", name: "", file: null });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -20,44 +20,24 @@ export default function FileUpload({ onFileUploaded, initialFile }: FileUploadPr
       return;
     }
 
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch("/api/actividades/upload", {
-        method: "POST",
-        body: formData
-      });
-      const data = await res.json();
-
-      // ✅ CAMBIO: en lugar de data.success, usamos data.url
-      if (data.url) {
-        setFileInfo({ url: data.url, name: data.name });
-        onFileUploaded({ url: data.url, name: data.name, type: data.type });
-      } else {
-        alert(data.error || "Error al subir archivo");
-      }
-    } catch (error) {
-      console.error(error);
-      alert("Error de conexión");
-    } finally {
-      setUploading(false);
-    }
+    // ✅ Guardar el archivo localmente sin subirlo aún
+    const objectUrl = URL.createObjectURL(file);
+    setFileInfo({ url: objectUrl, name: file.name, file });
+    onFileUploaded({ url: objectUrl, name: file.name, type: file.type, file });
   };
 
   const removeFile = () => {
-    setFileInfo(null);
-    onFileUploaded({ url: "", name: "", type: "" });
+    if (fileInfo.url) URL.revokeObjectURL(fileInfo.url);
+    setFileInfo({ url: "", name: "", file: null });
+    onFileUploaded({ url: "", name: "", type: "", file: null });
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  if (fileInfo) {
+  if (fileInfo.file) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f1f5f9', padding: '0.75rem', borderRadius: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <FaFile color="#4f46e5" /> <span>{fileInfo.name}</span>
-          <a href={fileInfo.url} target="_blank" style={{ color: '#4f46e5', marginLeft: '0.5rem' }}>Ver</a>
         </div>
         <button onClick={removeFile} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><FaTrash /></button>
       </div>

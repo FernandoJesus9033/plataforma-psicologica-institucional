@@ -10,6 +10,7 @@ interface Resultado {
   studentName: string;
   studentEmail: string;
   archivoNombre: string;
+  archivoUrl: string;
   fecha: string;
   procesado: boolean;
 }
@@ -169,8 +170,8 @@ export default function TestResultadosPage() {
                       </span>
                     </td>
                     <td style={styles.td}>
-                      {r.archivoNombre ? (
-                        <a href={`/api/archivos/${encodeURIComponent(r.archivoNombre)}`} download style={styles.downloadButton}>
+                      {r.archivoUrl ? (
+                        <a href={r.archivoUrl} download style={styles.downloadButton}>
                           <FaDownload /> Descargar
                         </a>
                       ) : (

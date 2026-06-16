@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
 import fs from "fs/promises";
 import path from "path";
 
-// Directorio donde se guardarán los archivos (fuera de public/)
 const UPLOADS_DIR = path.join(process.cwd(), "uploads");
 
 export async function GET(
@@ -12,33 +12,72 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession();
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { id: true, role: true }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
     const { nombre } = await params;
     const decodedNombre = decodeURIComponent(nombre);
 
-    // Validar que el nombre no contenga path traversal (seguridad)
     const safeName = path.basename(decodedNombre);
     const filePath = path.join(UPLOADS_DIR, safeName);
     
-    // Verificar que el archivo esté dentro del directorio de uploads (seguridad)
     if (!filePath.startsWith(UPLOADS_DIR)) {
       return NextResponse.json({ error: "Nombre de archivo inválido" }, { status: 400 });
     }
 
-    // Verificar si el archivo existe
     try {
       await fs.access(filePath);
     } catch {
       return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
     }
 
-    // Leer el archivo
+    // ✅ SI ES PSICÓLOGO -> PERMITIR DESCARGA
+    // ✅ SI ES ESTUDIANTE -> VERIFICAR QUE SEA SU ARCHIVO
+    if (currentUser.role !== "PSYCHOLOGIST") {
+      const student = await prisma.student.findUnique({
+        where: { email: session.user.email },
+        select: { id: true }
+      });
+
+      if (!student) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
+
+      const archivoRelacionado = await prisma.activity.findFirst({
+        where: {
+          studentId: student.id,
+          OR: [
+            { fileUrl: { contains: safeName } },
+            { entregaUrl: { contains: safeName } }
+          ]
+        }
+      });
+
+      // Verificar si es un resultado de test
+      const testResult = await prisma.testResult.findFirst({
+        where: {
+          studentId: student.id,
+          archivoUrl: { contains: safeName }
+        }
+      });
+
+      if (!archivoRelacionado && !testResult) {
+        return NextResponse.json({ error: "No autorizado para descargar este archivo" }, { status: 403 });
+      }
+    }
+
     const fileBuffer = await fs.readFile(filePath);
 
-    // Determinar el tipo de contenido
     let contentType = "application/octet-stream";
     const ext = path.extname(decodedNombre).toLowerCase();
     
@@ -58,7 +97,6 @@ export async function GET(
       headers: {
         "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${encodeURIComponent(decodedNombre)}"`,
-        // ✅ Cache-Control: private (no público)
         "Cache-Control": "private, no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
         "Expires": "0"

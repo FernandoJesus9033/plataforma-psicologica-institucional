@@ -10,10 +10,9 @@ export async function GET() {
     }
 
     const userEmail = session.user.email;
-    
-    // Obtener el rol del usuario desde Prisma
     const currentUser = await prisma.user.findUnique({
-      where: { email: userEmail }
+      where: { email: userEmail },
+      select: { role: true }
     });
 
     if (!currentUser) {
@@ -23,7 +22,6 @@ export async function GET() {
     let actividades;
 
     if (currentUser.role === "PSYCHOLOGIST") {
-      // Psicólogo ve todas las actividades
       actividades = await prisma.activity.findMany({
         include: {
           student: {
@@ -39,10 +37,18 @@ export async function GET() {
         }
       });
     } else {
-      // Estudiante solo ve sus actividades
+      const student = await prisma.student.findUnique({
+        where: { email: userEmail },
+        select: { id: true }
+      });
+
+      if (!student) {
+        return NextResponse.json([], { status: 200 });
+      }
+
       actividades = await prisma.activity.findMany({
         where: {
-          studentId: userEmail
+          studentId: student.id
         },
         include: {
           student: {
@@ -75,10 +81,9 @@ export async function POST(req: Request) {
     }
 
     const userEmail = session.user.email;
-    
-    // Obtener el rol del usuario desde Prisma
     const currentUser = await prisma.user.findUnique({
-      where: { email: userEmail }
+      where: { email: userEmail },
+      select: { id: true, role: true }
     });
 
     if (!currentUser) {
@@ -90,29 +95,71 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
+    console.log("📝 Datos recibidos para actividad:", body);
+
     const { title, description, studentId, dueDate, fileUrl, fileName, fileType } = body;
 
-    if (!title || !studentId) {
-      return NextResponse.json({ error: "Título y estudiante son requeridos" }, { status: 400 });
+    if (!title) {
+      return NextResponse.json({ error: "Faltan datos: Título es requerido" }, { status: 400 });
     }
 
-    // Verificar que el estudiante existe
-    const estudiante = await prisma.user.findUnique({
-      where: { email: studentId }
+    if (!studentId) {
+      return NextResponse.json({ error: "Faltan datos: Estudiante es requerido" }, { status: 400 });
+    }
+
+    if (!dueDate) {
+      return NextResponse.json({ error: "Faltan datos: Fecha límite es requerida" }, { status: 400 });
+    }
+
+    // ✅ Verificar que el estudiante existe en User
+    const estudiante = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: studentId },
+          { email: studentId }
+        ],
+        role: "STUDENT"
+      },
+      select: { id: true, email: true, name: true }
     });
 
     if (!estudiante) {
+      console.log("❌ Estudiante no encontrado en User:", studentId);
       return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
     }
 
-    // Crear la actividad en PostgreSQL
+    // ✅ Verificar que el estudiante existe en Student
+    // Si no existe, crearlo con el mismo ID que User
+    let estudianteStudent = await prisma.student.findUnique({
+      where: { email: estudiante.email },
+      select: { id: true }
+    });
+
+    if (!estudianteStudent) {
+      console.log("⚠️ Estudiante no encontrado en Student, creando...");
+      await prisma.student.create({
+        data: {
+          id: estudiante.id,  // ✅ Usa el mismo ID que User
+          email: estudiante.email,
+          name: estudiante.name || "Estudiante",
+          matricula: null,
+          notes: null
+        }
+      });
+      estudianteStudent = { id: estudiante.id };
+      console.log("✅ Estudiante creado en Student con ID:", estudianteStudent.id);
+    }
+
+    console.log("✅ Usando studentId:", estudianteStudent.id);
+
+    // ✅ Crear la actividad con el ID de Student
     const actividad = await prisma.activity.create({
       data: {
         title,
         description: description || "",
-        studentId: studentId,
+        studentId: estudianteStudent.id,  // ✅ Usa el ID de Student
         psychologistId: currentUser.id,
-        dueDate: dueDate ? new Date(dueDate) : null,
+        dueDate: new Date(dueDate),
         fileUrl: fileUrl || null,
         fileName: fileName || null,
         fileType: fileType || null,

@@ -67,16 +67,22 @@ export async function POST(req: Request) {
 
     const archivoUrl = `/api/archivos/${encodeURIComponent(fileName)}`;
 
-    // Guardar en PostgreSQL
-    const resultado = await prisma.testResult.create({
-      data: {
+    // ✅ Usar upsert para evitar error de unicidad
+    const resultado = await prisma.testResult.upsert({
+      where: { studentId: student.id },
+      update: {
+        archivoNombre: fileName,  // ✅ Guarda el nombre completo
+        archivoUrl: archivoUrl
+      },
+      create: {
         studentId: student.id,
-        archivoNombre: file.name,
+        archivoNombre: fileName,  // ✅ Guarda el nombre completo
         archivoUrl: archivoUrl
       }
     });
 
-    console.log("✅ Test subido:", resultado.id, "por", currentUser.email);
+    console.log("✅ Test subido/actualizado:", resultado.id, "por", currentUser.email);
+    console.log("📂 Archivo guardado como:", fileName);
 
     return NextResponse.json({ 
       success: true, 
@@ -84,6 +90,7 @@ export async function POST(req: Request) {
       resultado: {
         id: resultado.id,
         archivoNombre: resultado.archivoNombre,
+        archivoUrl: resultado.archivoUrl,
         fecha: resultado.completedAt
       }
     });

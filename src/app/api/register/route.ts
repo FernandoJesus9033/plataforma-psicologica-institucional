@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: "El usuario ya existe" },
+        { error: "El correo ya está registrado. Por favor, inicia sesión." },
         { status: 400 }
       );
     }
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     if (user.role === "STUDENT") {
       await prisma.student.create({
         data: {
-          id: user.id, // Usamos el mismo ID del User
+          id: user.id,
           email: user.email,
           name: user.name || "Estudiante",
           matricula: null,
