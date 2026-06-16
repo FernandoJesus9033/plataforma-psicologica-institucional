@@ -119,14 +119,14 @@ export default function EliminarEvaluacionPage({ params }: { params: Promise<{ i
 
   if (loading) {
     return (
-      <Layout session={null}>
+      <Layout>
         <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando...</div>
       </Layout>
     );
   }
 
   return (
-    <Layout session={null}>
+    <Layout>
       <div style={styles.container}>
         <div style={styles.header}>
           <Link href={`/evaluaciones/${id}`} style={styles.backButton}>

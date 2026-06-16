@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
 
-// Helper para obtener el rol del usuario
+// Helper para obtener el rol del usuario desde Prisma
 async function getUserRole(email: string): Promise<string> {
   if (!email) return "STUDENT";
   try {
-    const store = getStore("usuarios");
-    const userData = await store.get(email);
-    if (!userData) return "STUDENT";
-    const user = JSON.parse(userData);
-    return user.role || "STUDENT";
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { role: true }
+    });
+    return user?.role || "STUDENT";
   } catch (error) {
     console.error("Error getting user role:", error);
     return "STUDENT";
@@ -34,67 +34,73 @@ export async function GET() {
     const userRole = await getUserRole(userEmail);
     console.log("👤 Rol:", userRole);
 
-    // Intentar obtener el store de citas
-    let store;
-    try {
-      store = getStore("citas");
-      console.log("✅ Store 'citas' conectado");
-    } catch (err) {
-      console.error("❌ Error al conectar store 'citas':", err);
-      return NextResponse.json([], { status: 200 });
-    }
-
-    const todasLasCitas = [];
-
-    // Recorrer las citas
-    try {
-      for await (const item of store.list()) {
-        try {
-          const citaRaw = await store.get(item.key);
-          if (citaRaw) {
-            const cita = JSON.parse(citaRaw);
-            todasLasCitas.push(cita);
-          }
-        } catch (err) {
-          console.error("Error procesando item:", item.key, err);
-        }
-      }
-    } catch (err) {
-      console.error("Error al listar citas:", err);
-    }
-
-    console.log("📊 Total citas en store:", todasLasCitas.length);
-
-    // Filtrar según el rol
-    let resultado;
+    let citas;
+    
     if (userRole === "PSYCHOLOGIST") {
-      resultado = todasLasCitas.map(c => ({
+      // Psicólogo ve todas las citas con información del estudiante
+      citas = await prisma.appointment.findMany({
+        include: {
+          student: {
+            select: {
+              id: true,
+              email: true,
+              name: true
+            }
+          }
+        },
+        orderBy: {
+          date: 'desc'
+        }
+      });
+      
+      // Formatear para el frontend
+      const resultado = citas.map(c => ({
         id: c.id,
-        fecha: c.fecha,
-        hora: c.hora || "12:00",
+        fecha: c.date.toISOString().split('T')[0],
+        hora: c.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         motivo: c.motivo || "Sin motivo",
-        estado: c.estado || "PENDIENTE",
-        studentName: c.studentName || "Estudiante",
-        studentEmail: c.studentEmail
+        estado: c.status,
+        studentName: c.student.name || "Estudiante",
+        studentEmail: c.student.email
       }));
+      
+      console.log("📤 Enviando:", resultado.length, "citas para psicólogo");
+      return NextResponse.json(resultado);
+      
     } else {
-      resultado = todasLasCitas
-        .filter(c => c.studentEmail === userEmail)
-        .map(c => ({
-          id: c.id,
-          fecha: c.fecha,
-          hora: c.hora || "12:00",
-          motivo: c.motivo || "Sin motivo",
-          estado: c.estado || "PENDIENTE",
-          studentName: c.studentName,
-          studentEmail: c.studentEmail
-        }));
+      // Estudiante solo ve sus propias citas
+      // Primero obtener el estudiante por email
+      const estudiante = await prisma.student.findUnique({
+        where: { email: userEmail }
+      });
+
+      if (!estudiante) {
+        console.log("❌ Estudiante no encontrado:", userEmail);
+        return NextResponse.json([], { status: 200 });
+      }
+
+      citas = await prisma.appointment.findMany({
+        where: {
+          studentId: estudiante.id
+        },
+        orderBy: {
+          date: 'desc'
+        }
+      });
+      
+      const resultado = citas.map(c => ({
+        id: c.id,
+        fecha: c.date.toISOString().split('T')[0],
+        hora: c.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        motivo: c.motivo || "Sin motivo",
+        estado: c.status,
+        studentName: session.user.name || "Estudiante",
+        studentEmail: userEmail
+      }));
+      
+      console.log("📤 Enviando:", resultado.length, "citas para estudiante");
+      return NextResponse.json(resultado);
     }
-
-    resultado.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-
-    console.log("📤 Enviando:", resultado.length, "citas");
-    return NextResponse.json(resultado);
     
   } catch (error) {
     console.error("❌ Error FATAL en GET /api/citas:", error);
@@ -117,6 +123,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo estudiantes pueden solicitar citas" }, { status: 403 });
     }
 
+    // Obtener el estudiante por email
+    const estudiante = await prisma.student.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!estudiante) {
+      return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
+    }
+
     const body = await req.json();
     const { date, motivo } = body;
 
@@ -125,25 +140,31 @@ export async function POST(req: Request) {
     }
 
     const fechaObj = new Date(date);
-    const fechaStr = fechaObj.toISOString().split('T')[0];
-    const horaStr = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    const nuevaCita = {
-      id: crypto.randomUUID(),
-      studentEmail: session.user.email,
+    // Crear la cita en PostgreSQL
+    const nuevaCita = await prisma.appointment.create({
+      data: {
+        studentId: estudiante.id,
+        date: fechaObj,
+        motivo: motivo || "Sin motivo",
+        status: "PENDING"
+      }
+    });
+
+    console.log("✅ Cita creada:", nuevaCita.id);
+    
+    // Formatear para el frontend
+    const respuesta = {
+      id: nuevaCita.id,
+      fecha: nuevaCita.date.toISOString().split('T')[0],
+      hora: nuevaCita.date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      motivo: nuevaCita.motivo,
+      estado: nuevaCita.status,
       studentName: session.user.name || "Estudiante",
-      fecha: fechaStr,
-      hora: horaStr,
-      motivo: motivo || "Sin motivo",
-      estado: "PENDIENTE",
-      createdAt: new Date().toISOString()
+      studentEmail: session.user.email
     };
 
-    const store = getStore("citas");
-    await store.setJSON(nuevaCita.id, nuevaCita);
-    console.log("✅ Cita creada:", nuevaCita.id);
-
-    return NextResponse.json(nuevaCita, { status: 201 });
+    return NextResponse.json(respuesta, { status: 201 });
     
   } catch (error) {
     console.error("❌ Error en POST /api/citas:", error);
@@ -173,15 +194,20 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "ID y status requeridos" }, { status: 400 });
     }
 
-    const store = getStore("citas");
-    const citaRaw = await store.get(id);
-    if (!citaRaw) {
+    // Verificar que la cita existe
+    const citaExistente = await prisma.appointment.findUnique({
+      where: { id }
+    });
+
+    if (!citaExistente) {
       return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
     }
 
-    const cita = JSON.parse(citaRaw);
-    cita.estado = status;
-    await store.setJSON(id, cita);
+    // Actualizar el estado
+    const citaActualizada = await prisma.appointment.update({
+      where: { id },
+      data: { status: status }
+    });
 
     console.log("✅ Cita actualizada:", id, status);
     return NextResponse.json({ success: true });
@@ -210,20 +236,33 @@ export async function DELETE(req: Request) {
     }
 
     const userRole = await getUserRole(session.user.email);
-    const store = getStore("citas");
-    const citaRaw = await store.get(id);
+    
+    // Verificar que la cita existe
+    const cita = await prisma.appointment.findUnique({
+      where: { id }
+    });
 
-    if (!citaRaw) {
+    if (!cita) {
       return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
     }
-
-    const cita = JSON.parse(citaRaw);
     
-    if (userRole !== "PSYCHOLOGIST" && cita.studentEmail !== session.user.email) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    // Verificar permisos
+    if (userRole !== "PSYCHOLOGIST") {
+      // Si es estudiante, verificar que sea su cita
+      const estudiante = await prisma.student.findUnique({
+        where: { email: session.user.email }
+      });
+      
+      if (!estudiante || cita.studentId !== estudiante.id) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
     }
 
-    await store.delete(id);
+    // Eliminar la cita
+    await prisma.appointment.delete({
+      where: { id }
+    });
+    
     console.log("✅ Cita eliminada:", id);
     return NextResponse.json({ success: true });
     

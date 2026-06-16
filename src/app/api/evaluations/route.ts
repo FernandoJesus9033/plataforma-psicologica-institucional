@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
 
 function calculateStatus(score: number): string {
   if (score >= 70) return "GREEN";
@@ -11,21 +11,38 @@ function calculateStatus(score: number): string {
 export async function GET() {
   try {
     const session = await getServerSession();
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const store = getStore("evaluaciones");
-    const evaluations: any[] = [];
-
-    for await (const item of store.list()) {
-      const evaluacion = await store.get(item.key);
-      if (evaluacion) {
-        evaluations.push(JSON.parse(evaluacion));
+    // Obtener evaluaciones desde PostgreSQL
+    const evaluations = await prisma.evaluation.findMany({
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
-    }
+    });
 
-    return NextResponse.json(evaluations);
+    // Formatear para el frontend (mantener misma estructura)
+    const formattedEvaluations = evaluations.map(e => ({
+      id: e.id,
+      studentId: e.studentId,
+      studentName: e.student.name || "Estudiante",
+      studentEmail: e.student.email,
+      score: e.score,
+      status: e.status,
+      createdAt: e.createdAt.toISOString()
+    }));
+
+    return NextResponse.json(formattedEvaluations);
   } catch (error) {
     console.error("Error al obtener evaluaciones:", error);
     return NextResponse.json({ error: "Error al obtener evaluaciones" }, { status: 500 });
@@ -35,13 +52,18 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const user = session.user;
-    if (user.role !== "PSYCHOLOGIST") {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    // Verificar rol desde PostgreSQL
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true }
+    });
+
+    if (!currentUser || currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado. Solo psicólogos pueden crear evaluaciones" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -54,45 +76,53 @@ export async function POST(req: Request) {
       );
     }
 
-    // Obtener datos del estudiante desde el store de usuarios
-    const usuariosStore = getStore("usuarios");
-    let studentName = "";
-    let studentEmail = "";
-
-    // Buscar por email o por ID
-    for await (const item of usuariosStore.list()) {
-      const usuario = await usuariosStore.get(item.key);
-      if (usuario) {
-        const parsed = JSON.parse(usuario);
-        if (parsed.id === studentId || parsed.email === studentId) {
-          studentName = parsed.name;
-          studentEmail = parsed.email;
-          break;
-        }
+    // Buscar al estudiante en PostgreSQL (User con rol STUDENT)
+    const estudiante = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: studentId },
+          { email: studentId }
+        ],
+        role: "STUDENT"
       }
-    }
+    });
 
-    if (!studentName) {
+    if (!estudiante) {
       return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
     }
 
     const status = calculateStatus(score);
-    console.log("✅ Creando evaluación:", { studentId, studentName, score, status });
+    console.log("✅ Creando evaluación:", { studentId: estudiante.id, studentName: estudiante.name, score, status });
 
-    const evaluation = {
-      id: crypto.randomUUID(),
-      studentId: studentId,
-      studentName,
-      studentEmail,
-      score,
-      status,
-      createdAt: new Date().toISOString()
+    // Crear la evaluación en PostgreSQL
+    const evaluation = await prisma.evaluation.create({
+      data: {
+        studentId: estudiante.id,
+        score: score,
+        status: status
+      },
+      include: {
+        student: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Formatear respuesta
+    const response = {
+      id: evaluation.id,
+      studentId: evaluation.studentId,
+      studentName: evaluation.student.name || "Estudiante",
+      studentEmail: evaluation.student.email,
+      score: evaluation.score,
+      status: evaluation.status,
+      createdAt: evaluation.createdAt.toISOString()
     };
 
-    const store = getStore("evaluaciones");
-    await store.setJSON(evaluation.id, evaluation);
-
-    return NextResponse.json(evaluation, { status: 201 });
+    return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error("❌ Error al crear evaluación:", error);
     return NextResponse.json({ error: "Error al crear evaluación: " + (error as Error).message }, { status: 500 });

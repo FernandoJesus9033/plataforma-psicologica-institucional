@@ -4,9 +4,9 @@ import bcrypt from 'bcrypt'
 const prisma = new PrismaClient()
 
 async function main() {
-  const email = "psicologa@test.com"
-  const password = "123456"
-  const name = "Psicóloga"
+  const email = "psicologo@ejemplo.com"
+  const password = "psicologo123"
+  const name = "Psicólogo Principal"
   const role = "PSYCHOLOGIST"
 
   const existingUser = await prisma.user.findUnique({
@@ -14,7 +14,7 @@ async function main() {
   })
 
   if (existingUser) {
-    console.log(`✅ El usuario ${email} ya existe`)
+    console.log("⚠️ El usuario ya existe:", email)
     return
   }
 
@@ -29,11 +29,9 @@ async function main() {
     }
   })
 
-  console.log(`✅ Usuario creado: ${user.email} (${user.role})`)
+  console.log("✅ Psicólogo creado exitosamente:", { email: user.email, role: user.role })
 }
 
 main()
-  .catch(e => console.error(e))
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+  .catch(console.error)
+  .finally(() => prisma.$disconnect())

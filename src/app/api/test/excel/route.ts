@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
 
 // Función simple para calcular percentiles (ejemplo)
 function obtenerPercentil(scale: string, score: number): number {
@@ -14,16 +14,25 @@ function calculateScoresDirectly(respuestas: any[]) {
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  if (session.user.role !== "STUDENT") {
-    return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-  }
-
   try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    // Verificar rol desde PostgreSQL
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    if (currentUser.role !== "STUDENT") {
+      return NextResponse.json({ error: "Acceso denegado. Solo estudiantes pueden realizar el test" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { respuestas } = body;
 
@@ -38,29 +47,34 @@ export async function POST(req: Request) {
       R: obtenerPercentil("R", pd.R),
       E: obtenerPercentil("E", pd.E),
       S: obtenerPercentil("S", pd.S),
-      AE: obtenerPercentil("A", pd.AE),
+      AE: obtenerPercentil("AE", pd.AE),
       C: obtenerPercentil("C", pd.C),
       O: obtenerPercentil("O", pd.O),
       P: obtenerPercentil("P", pd.P),
       V: obtenerPercentil("V", pd.V),
     };
 
-    // Guardar en Netlify Blobs
-    const store = getStore("test-resultados");
-    const resultado = {
-      id: crypto.randomUUID(),
-      studentEmail: session.user.email,
-      studentName: session.user.name,
-      scores: pd,
+    // Guardar en PostgreSQL
+    const testResultado = await prisma.testResult.create({
+      data: {
+        studentId: currentUser.id,
+        scores: JSON.stringify(pd),
+        percentiles: JSON.stringify(pc),
+        archivoNombre: `test_${currentUser.email}_${Date.now()}.json`
+      }
+    });
+
+    console.log("✅ Test procesado y guardado:", testResultado.id);
+
+    return NextResponse.json({ 
+      success: true, 
+      scores: pd, 
       percentiles: pc,
-      completedAt: new Date().toISOString()
-    };
+      resultadoId: testResultado.id
+    });
 
-    await store.setJSON(resultado.id, resultado);
-
-    return NextResponse.json({ success: true, scores: pd, percentiles: pc });
   } catch (error) {
     console.error("Error al procesar test:", error);
-    return NextResponse.json({ error: "Error al procesar el test" }, { status: 500 });
+    return NextResponse.json({ error: "Error al procesar el test: " + (error as Error).message }, { status: 500 });
   }
 }

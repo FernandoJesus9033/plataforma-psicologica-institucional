@@ -1,9 +1,10 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
+import { NextAuthOptions } from "next-auth";
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -19,15 +20,16 @@ const handler = NextAuth({
           return null;
         }
 
-        const store = getStore("usuarios");
-        const userData = await store.get(credentials.email);
+        // ✅ AHORA USA PRISMA en lugar de Netlify Blobs
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email }
+        });
         
-        if (!userData) {
+        if (!user) {
           console.log("❌ [authorize] Usuario no encontrado:", credentials.email);
           return null;
         }
         
-        const user = JSON.parse(userData);
         console.log("📦 [authorize] Usuario encontrado:", { email: user.email, role: user.role });
         
         const passwordMatch = await bcrypt.compare(credentials.password, user.password);
@@ -43,7 +45,7 @@ const handler = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role
+          role: user.role || "STUDENT"
         };
       }
     })
@@ -54,11 +56,10 @@ const handler = NextAuth({
       
       if (user) {
         token.id = user.id;
-        token.role = user.role;
+        token.role = user.role || "STUDENT";
         console.log("✅ [jwt] Token actualizado con usuario:", { id: user.id, role: user.role });
       }
       
-      // ✅ Forzar que el rol se mantenga en el token
       if (token.role) {
         console.log("🔑 [jwt] Rol en token:", token.role);
       }
@@ -71,13 +72,11 @@ const handler = NextAuth({
       
       if (session?.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as string;
-        // ✅ Forzar que el rol se incluya en la sesión
-        session.user.role = token.role;
+        session.user.role = (token.role as string) || "STUDENT";
         console.log("✅ [session] Session actualizada con token:", { id: token.id, role: token.role });
       }
       
-      console.log("📋 [session] Session después:", { user: session.user, role: token.role });
+      console.log("📋 [session] Session después:", { user: session.user });
       return session;
     }
   },
@@ -89,6 +88,7 @@ const handler = NextAuth({
     maxAge: 30 * 24 * 60 * 60,
   },
   secret: process.env.NEXTAUTH_SECRET,
-});
+};
 
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };

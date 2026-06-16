@@ -212,7 +212,7 @@ export default function EditarEvaluacionPage({ params }: { params: Promise<{ id:
       fontWeight: '600',
       cursor: 'pointer',
       textDecoration: 'none',
-      textAlign: 'center',
+      textAlign: 'center' as const,
     },
     errorMessage: {
       background: '#fee2e2',

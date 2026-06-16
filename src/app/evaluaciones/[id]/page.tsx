@@ -124,7 +124,7 @@ export default async function DetalleEvaluacionPage({ params }: { params: Promis
   };
 
   return (
-    <Layout session={session}>
+    <Layout>  {/* ✅ Eliminado session={session} */}
       <div style={styles.container}>
         <div style={styles.header}>
           <Link href="/evaluaciones" style={styles.backButton}>

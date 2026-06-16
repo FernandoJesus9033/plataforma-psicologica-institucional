@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const studentId = searchParams.get("studentId");
+
+    // ✅ Eliminado include: { student: true }
     const appointments = await prisma.appointment.findMany({
-      include: { student: true },
-      orderBy: { date: "asc" }
+      where: studentId ? { studentId } : {},
+      orderBy: { date: 'desc' }
     });
+
     return NextResponse.json(appointments);
   } catch (error) {
     console.error("Error en GET /api/appointments:", error);
@@ -23,18 +28,21 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const { studentId, date } = await req.json();
+    const body = await req.json();
+    const { studentId, date, motivo } = body;
 
+    // ✅ Eliminado include: { student: true }
     const appointment = await prisma.appointment.create({
       data: {
         studentId,
-        date: new Date(date)
-      },
-      include: { student: true }
+        date: new Date(date),
+        motivo: motivo || null,
+        status: "PENDING"
+      }
     });
 
     return NextResponse.json(appointment, { status: 201 });

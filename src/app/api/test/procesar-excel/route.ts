@@ -5,30 +5,30 @@ import ExcelJS from "exceljs";
 import { obtenerPercentil } from "@/lib/excel/config/tablaPercentiles";
 
 export async function POST(req: Request) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email: session.user?.email ?? undefined }
-  });
-
-  if (!user || user.role !== "STUDENT") {
-    return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
-  }
-
-  let student = await prisma.student.findUnique({
-    where: { email: user.email }
-  });
-
-  if (!student) {
-    student = await prisma.student.create({
-      data: { email: user.email, name: user.name || "Estudiante" }
-    });
-  }
-
   try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user || user.role !== "STUDENT") {
+      return NextResponse.json({ error: "Acceso denegado" }, { status: 403 });
+    }
+
+    let student = await prisma.student.findUnique({
+      where: { email: user.email }
+    });
+
+    if (!student) {
+      student = await prisma.student.create({
+        data: { email: user.email, name: user.name || "Estudiante" }
+      });
+    }
+
     const formData = await req.formData();
     const file = formData.get("archivo") as File;
     
@@ -42,9 +42,10 @@ export async function POST(req: Request) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(uint8Array);
+    // ✅ CORREGIDO: usar as any para evitar error de tipos
+    await workbook.xlsx.load(buffer as any);
     
     const worksheet = workbook.getWorksheet("APLICACION Y CONTEO");
     if (!worksheet) {

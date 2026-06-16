@@ -2,15 +2,20 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import Layout from "@/components/Layout";
 import { FaArrowLeft, FaBrain, FaUser, FaDownload, FaFileExcel } from "react-icons/fa";
 
 export default async function TestResultadoDetallePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getServerSession();
-  if (!session) redirect("/login");
+  
+  // ✅ Validar sesión antes de usar
+  if (!session?.user?.email) {
+    redirect("/login");
+  }
 
   const user = await prisma.user.findUnique({
-    where: { email: session.user?.email }
+    where: { email: session.user.email }
   });
 
   const isPsychologist = user?.role === "PSYCHOLOGIST";
@@ -37,44 +42,46 @@ export default async function TestResultadoDetallePage({ params }: { params: Pro
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <Link href="/test-resultados" style={styles.backButton}>
-          <FaArrowLeft /> Volver
-        </Link>
-        <h1 style={styles.title}>
-          <FaBrain /> Test Completado
-        </h1>
-      </div>
+    <Layout>
+      <div style={styles.container}>
+        <div style={styles.header}>
+          <Link href="/test-resultados" style={styles.backButton}>
+            <FaArrowLeft /> Volver
+          </Link>
+          <h1 style={styles.title}>
+            <FaBrain /> Test Completado
+          </h1>
+        </div>
 
-      {/* Datos del estudiante */}
-      <div style={styles.card}>
-        <div style={styles.studentInfo}>
-          <FaUser style={{ fontSize: '2rem', color: '#4a90c4' }} />
-          <div>
-            <h2 style={styles.studentName}>{resultado.student.name}</h2>
-            <p style={styles.studentEmail}>{resultado.student.email}</p>
+        {/* Datos del estudiante */}
+        <div style={styles.card}>
+          <div style={styles.studentInfo}>
+            <FaUser style={{ fontSize: '2rem', color: '#4a90c4' }} />
+            <div>
+              <h2 style={styles.studentName}>{resultado.student.name}</h2>
+              <p style={styles.studentEmail}>{resultado.student.email}</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Archivo subido por el alumno */}
-      {resultado.archivoUrl ? (
-        <div style={styles.card}>
-          <h3><FaFileExcel /> Test completado</h3>
-          <p>El alumno subió su test completado en Excel:</p>
-          <a href={resultado.archivoUrl} target="_blank" rel="noopener noreferrer" style={styles.fileLink}>
-            <FaDownload /> {resultado.archivoNombre || "Descargar Excel"}
-          </a>
-          <div style={styles.date}>
-            Subido: {new Date(resultado.completedAt).toLocaleDateString()}
+        {/* Archivo subido por el alumno */}
+        {resultado.archivoUrl ? (
+          <div style={styles.card}>
+            <h3><FaFileExcel /> Test completado</h3>
+            <p>El alumno subió su test completado en Excel:</p>
+            <a href={resultado.archivoUrl} target="_blank" rel="noopener noreferrer" style={styles.fileLink}>
+              <FaDownload /> {resultado.archivoNombre || "Descargar Excel"}
+            </a>
+            <div style={styles.date}>
+              Subido: {new Date(resultado.completedAt).toLocaleDateString()}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div style={styles.card}>
-          <p style={{ textAlign: 'center', color: '#64748b' }}>El alumno aún no ha subido su test completado.</p>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div style={styles.card}>
+            <p style={{ textAlign: 'center', color: '#64748b' }}>El alumno aún no ha subido su test completado.</p>
+          </div>
+        )}
+      </div>
+    </Layout>
   );
 }

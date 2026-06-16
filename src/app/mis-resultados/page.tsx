@@ -149,7 +149,7 @@ export default function MisResultadosPage() {
 
   if (cargando) {
     return (
-      <Layout session={session}>
+      <Layout>
         <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando resultados...</div>
       </Layout>
     );
@@ -157,7 +157,7 @@ export default function MisResultadosPage() {
 
   if (!resultado || !resultado.scores) {
     return (
-      <Layout session={session}>
+      <Layout>
         <div style={styles.sinTest}>
           <h2>📋 No has realizado el test aún</h2>
           <p>Completa el test de personalidad para ver tus resultados.</p>
@@ -183,7 +183,7 @@ export default function MisResultadosPage() {
   }));
 
   return (
-    <Layout session={session}>
+    <Layout>
       <div style={styles.container}>
         <div style={styles.header}>
           <h1 style={styles.title}>

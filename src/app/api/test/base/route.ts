@@ -1,73 +1,74 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
+import fs from "fs/promises";
+import path from "path";
+
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+
+// Asegurar que el directorio existe
+async function ensureUploadsDir() {
+  try {
+    await fs.access(UPLOADS_DIR);
+  } catch {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  }
+}
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  const store = getStore("test-base");
-  
-  // Buscar el archivo "current"
-  let testBase = await store.get("current");
-  
-  if (!testBase) {
-    // Buscar el archivo Excel más reciente
-    let latestFile = null;
-    let latestTime = 0;
-    for await (const item of store.list()) {
-      if (item.key !== "current" && item.key.endsWith('.xlsx')) {
-        const timestamp = parseInt(item.key.split('_')[0]);
-        if (timestamp > latestTime) {
-          latestTime = timestamp;
-          latestFile = item.key;
-        }
-      }
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
-    
-    if (latestFile) {
-      testBase = JSON.stringify({
-        id: "current",
-        archivoNombre: latestFile,
-        archivoUrl: `/api/archivos/${encodeURIComponent(latestFile)}`,
-        activo: true,
-        createdAt: new Date().toISOString()
-      });
-    }
-  }
-  
-  if (!testBase) {
-    return NextResponse.json({ error: "No hay test base disponible" }, { status: 404 });
-  }
 
-  const parsed = JSON.parse(testBase);
-  return NextResponse.json(parsed);
+    // Buscar el test base activo en PostgreSQL
+    let testBase = await prisma.testBase.findFirst({
+      where: { activo: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!testBase) {
+      return NextResponse.json({ error: "No hay test base disponible" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      id: testBase.id,
+      archivoNombre: testBase.archivoNombre,
+      archivoUrl: testBase.archivoUrl,
+      activo: testBase.activo,
+      createdAt: testBase.createdAt.toISOString()
+    });
+
+  } catch (error) {
+    console.error("Error en GET /api/test/base:", error);
+    return NextResponse.json({ error: "Error al obtener test base" }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  // Verificar que sea psicóloga
-  const usuariosStore = getStore("usuarios");
-  const userData = await usuariosStore.get(session.user.email);
-  if (!userData) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-  
-  const user = JSON.parse(userData);
-  if (user.role !== "PSYCHOLOGIST") {
-    return NextResponse.json({ error: "Solo psicólogos pueden subir test base" }, { status: 403 });
-  }
-
   try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    // Verificar que sea psicóloga
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    if (currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "Solo psicólogos pueden subir test base" }, { status: 403 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("archivo") as File;
-    
+
     if (!file) {
       return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
     }
@@ -76,26 +77,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo se permiten archivos .xlsx" }, { status: 400 });
     }
 
+    // Guardar archivo en disco
+    await ensureUploadsDir();
     const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
     const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const fileName = `${timestamp}_${safeName}`;
+    const filePath = path.join(UPLOADS_DIR, fileName);
     
-    const store = getStore("test-base");
-    await store.set(fileName, buffer);
+    await fs.writeFile(filePath, buffer);
 
-    const testBaseData = {
-      id: "current",
-      archivoNombre: file.name,
-      archivoUrl: `/api/archivos/${encodeURIComponent(fileName)}`,
-      activo: true,
-      createdAt: new Date().toISOString()
-    };
+    const archivoUrl = `/api/archivos/${encodeURIComponent(fileName)}`;
 
-    // Guardar como current
-    await store.setJSON("current", testBaseData);
+    // Desactivar todos los tests base anteriores
+    await prisma.testBase.updateMany({
+      where: { activo: true },
+      data: { activo: false }
+    });
 
-    return NextResponse.json({ success: true, testBase: testBaseData });
+    // Crear nuevo test base en PostgreSQL
+    const testBaseData = await prisma.testBase.create({
+      data: {
+        archivoNombre: file.name,
+        archivoUrl: archivoUrl,
+        activo: true
+      }
+    });
+
+    console.log("✅ Test base subido:", testBaseData.id);
+
+    return NextResponse.json({ 
+      success: true, 
+      testBase: {
+        id: testBaseData.id,
+        archivoNombre: testBaseData.archivoNombre,
+        archivoUrl: testBaseData.archivoUrl,
+        activo: testBaseData.activo,
+        createdAt: testBaseData.createdAt.toISOString()
+      }
+    });
+
   } catch (error) {
     console.error("Error al subir test base:", error);
     return NextResponse.json({ error: "Error al subir el archivo" }, { status: 500 });

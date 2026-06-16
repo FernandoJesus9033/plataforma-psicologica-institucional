@@ -1,31 +1,52 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
+import fs from "fs/promises";
+import path from "path";
+
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+
+// Asegurar que el directorio existe
+async function ensureUploadsDir() {
+  try {
+    await fs.access(UPLOADS_DIR);
+  } catch {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  }
+}
 
 export async function POST(req: Request) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  // Verificar rol desde el store de usuarios
-  const usuariosStore = getStore("usuarios");
-  const userData = await usuariosStore.get(session.user.email);
-  
-  if (!userData) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-  
-  const user = JSON.parse(userData);
-  
-  if (user.role !== "STUDENT") {
-    return NextResponse.json({ error: "Solo estudiantes pueden subir test" }, { status: 403 });
-  }
-
   try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    // Verificar rol desde PostgreSQL
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    if (currentUser.role !== "STUDENT") {
+      return NextResponse.json({ error: "Solo estudiantes pueden subir test" }, { status: 403 });
+    }
+
+    // Buscar el estudiante asociado
+    const student = await prisma.student.findUnique({
+      where: { email: currentUser.email }
+    });
+
+    if (!student) {
+      return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
+    }
+
     const formData = await req.formData();
     const file = formData.get("archivo") as File;
-    
+
     if (!file) {
       return NextResponse.json({ error: "No se recibió archivo" }, { status: 400 });
     }
@@ -34,27 +55,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Solo se permiten archivos .xlsx" }, { status: 400 });
     }
 
+    // Guardar archivo en disco
+    await ensureUploadsDir();
     const buffer = Buffer.from(await file.arrayBuffer());
     const timestamp = Date.now();
-    const fileName = `${timestamp}_${user.email}_${file.name}`;
+    const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const fileName = `${timestamp}_${currentUser.email}_${safeName}`;
+    const filePath = path.join(UPLOADS_DIR, fileName);
     
-    const store = getStore("test-resultados");
-    await store.set(fileName, buffer);
+    await fs.writeFile(filePath, buffer);
 
-    const resultado = {
-      id: crypto.randomUUID(),
-      studentEmail: user.email,
-      studentName: user.name || "Estudiante",
-      archivoNombre: file.name,
-      archivoUrl: `/api/archivos/${fileName}`,
-      fecha: new Date().toISOString(),
-      procesado: false
-    };
-    await store.setJSON(resultado.id, resultado);
+    const archivoUrl = `/api/archivos/${encodeURIComponent(fileName)}`;
 
-    return NextResponse.json({ success: true, message: "Test subido correctamente" });
+    // Guardar en PostgreSQL
+    const resultado = await prisma.testResult.create({
+      data: {
+        studentId: student.id,
+        archivoNombre: file.name,
+        archivoUrl: archivoUrl
+      }
+    });
+
+    console.log("✅ Test subido:", resultado.id, "por", currentUser.email);
+
+    return NextResponse.json({ 
+      success: true, 
+      message: "Test subido correctamente",
+      resultado: {
+        id: resultado.id,
+        archivoNombre: resultado.archivoNombre,
+        fecha: resultado.completedAt
+      }
+    });
+
   } catch (error) {
     console.error("Error al subir test:", error);
-    return NextResponse.json({ error: "Error al subir el archivo" }, { status: 500 });
+    return NextResponse.json({ error: "Error al subir el archivo: " + (error as Error).message }, { status: 500 });
   }
 }

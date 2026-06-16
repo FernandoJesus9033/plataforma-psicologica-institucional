@@ -17,7 +17,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { themeStyles, tema } = useTheme();
+  const { themeStyles } = useTheme(); // ✅ Eliminado "tema"
 
   const userRole = session?.user?.role;
   const isPsychologist = userRole === "PSYCHOLOGIST";
@@ -47,7 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     root.style.setProperty('--input-text', themeStyles.inputText);
     root.style.setProperty('--link-color', themeStyles.linkColor);
     root.style.setProperty('--shadow', themeStyles.shadow);
-  }, [themeStyles, tema]);
+  }, [themeStyles]); // ✅ Eliminado "tema" de las dependencias
 
   const isActive = (path: string) => pathname === path;
 

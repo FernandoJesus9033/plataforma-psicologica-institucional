@@ -1,46 +1,94 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  const store = getStore("actividades");
-  const actividades: any[] = [];
-
-  for await (const item of store.list()) {
-    const actividad = await store.get(item.key);
-    if (actividad) {
-      actividades.push(JSON.parse(actividad));
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
-  }
 
-  return NextResponse.json(actividades);
+    const userEmail = session.user.email;
+    
+    // Obtener el rol del usuario desde Prisma
+    const currentUser = await prisma.user.findUnique({
+      where: { email: userEmail }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    let actividades;
+
+    if (currentUser.role === "PSYCHOLOGIST") {
+      // Psicólogo ve todas las actividades
+      actividades = await prisma.activity.findMany({
+        include: {
+          student: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+    } else {
+      // Estudiante solo ve sus actividades
+      actividades = await prisma.activity.findMany({
+        where: {
+          studentId: userEmail
+        },
+        include: {
+          student: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      });
+    }
+
+    return NextResponse.json(actividades);
+    
+  } catch (error) {
+    console.error("Error en GET /api/actividades:", error);
+    return NextResponse.json({ error: "Error al obtener actividades" }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession();
-  if (!session) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  // Obtener rol del usuario desde el store
-  const usuariosStore = getStore("usuarios");
-  const userData = await usuariosStore.get(session.user.email);
-  
-  if (!userData) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-  
-  const currentUser = JSON.parse(userData);
-  if (currentUser.role !== "PSYCHOLOGIST") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
-
   try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    const userEmail = session.user.email;
+    
+    // Obtener el rol del usuario desde Prisma
+    const currentUser = await prisma.user.findUnique({
+      where: { email: userEmail }
+    });
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    if (currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado. Solo psicólogos pueden crear actividades" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { title, description, studentId, dueDate, fileUrl, fileName, fileType } = body;
 
@@ -48,41 +96,43 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Título y estudiante son requeridos" }, { status: 400 });
     }
 
-    // Obtener nombre del estudiante
-    let studentName = "Estudiante";
-    for await (const item of usuariosStore.list()) {
-      const usuario = await usuariosStore.get(item.key);
-      if (usuario) {
-        const parsed = JSON.parse(usuario);
-        if (parsed.id === studentId || parsed.email === studentId) {
-          studentName = parsed.name;
-          break;
-        }
-      }
+    // Verificar que el estudiante existe
+    const estudiante = await prisma.user.findUnique({
+      where: { email: studentId }
+    });
+
+    if (!estudiante) {
+      return NextResponse.json({ error: "Estudiante no encontrado" }, { status: 404 });
     }
 
-    const actividad = {
-      id: crypto.randomUUID(),
-      title,
-      description: description || "",
-      studentId,
-      studentName,
-      psychologistId: currentUser.id,
-      psychologistName: currentUser.name,
-      dueDate: dueDate || null,
-      fileUrl: fileUrl || null,
-      fileName: fileName || null,
-      fileType: fileType || null,
-      status: "PENDING",
-      createdAt: new Date().toISOString()
-    };
+    // Crear la actividad en PostgreSQL
+    const actividad = await prisma.activity.create({
+      data: {
+        title,
+        description: description || "",
+        studentId: studentId,
+        psychologistId: currentUser.id,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        fileType: fileType || null,
+        status: "PENDING"
+      },
+      include: {
+        student: {
+          select: {
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
 
-    const store = getStore("actividades");
-    await store.setJSON(actividad.id, actividad);
-
+    console.log("✅ Actividad creada:", actividad.id);
     return NextResponse.json(actividad, { status: 201 });
+    
   } catch (error) {
-    console.error("Error al crear actividad:", error);
-    return NextResponse.json({ error: "Error al crear actividad" }, { status: 500 });
+    console.error("Error en POST /api/actividades:", error);
+    return NextResponse.json({ error: "Error al crear actividad: " + (error as Error).message }, { status: 500 });
   }
 }

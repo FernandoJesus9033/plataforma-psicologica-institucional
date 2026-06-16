@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Layout from "@/components/Layout";
 import { useTheme } from "@/contexts/ThemeContext";
-// import BotonDescargarPDF from "@/components/BotonDescargarPDF";  // ❌ COMENTADO TEMPORALMENTE
 import { 
   FaArrowLeft, FaUserGraduate, FaEnvelope, FaCalendarAlt, 
   FaChartLine, FaClipboardList, FaTasks, FaBrain, FaHeartbeat
@@ -86,7 +86,7 @@ function getInterpretation(percentile: number): { text: string; color: string; r
 }
 
 export default function ExpedientePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+  const { id } = use(params);
   const [alumno, setAlumno] = useState<Alumno | null>(null);
   const [evaluaciones, setEvaluaciones] = useState<Evaluacion[]>([]);
   const [actividades, setActividades] = useState<Activity[]>([]);
@@ -198,7 +198,7 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
 
   if (loading) {
     return (
-      <Layout session={session}>
+      <Layout>
         <div style={{ textAlign: 'center', padding: '4rem' }}>Cargando expediente...</div>
       </Layout>
     );
@@ -206,14 +206,14 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
 
   if (!alumno) {
     return (
-      <Layout session={session}>
+      <Layout>
         <div style={{ textAlign: 'center', padding: '4rem' }}>Alumno no encontrado</div>
       </Layout>
     );
   }
 
   return (
-    <Layout session={session}>
+    <Layout>
       <div ref={expedienteRef} style={styles.container}>
         <div style={styles.header}>
           <Link href="/alumnos" style={styles.backButton}>
@@ -222,8 +222,6 @@ export default function ExpedientePage({ params }: { params: Promise<{ id: strin
           <h1 style={styles.title}>
             <FaUserGraduate /> Expediente del Alumno
           </h1>
-          {/* ❌ Botón de PDF deshabilitado temporalmente por error de build */}
-          {/* <BotonDescargarPDF expedienteRef={expedienteRef} nombreAlumno={alumno?.name || "alumno"} /> */}
         </div>
 
         <div style={styles.card}>

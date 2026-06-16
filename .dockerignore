@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.gitignore
+*.log
+.env
+.env.local
+.DS_Store
+*.md
+!.env.example
+.vercel
+.netlify
+*.exe
+auth
+auth-wal
+estructura.txt
+plataforma-psicologica-institucional-backup

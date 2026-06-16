@@ -1,81 +1,77 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { getStore } from "@netlify/blobs";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const session = await getServerSession();
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-  }
-
-  if (session.user.role !== "PSYCHOLOGIST") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
-
   try {
-    // 1. Contar alumnos
-    const usuariosStore = getStore("usuarios");
-    let totalAlumnos = 0;
-    for await (const item of usuariosStore.list()) {
-      const usuario = await usuariosStore.get(item.key);
-      if (usuario) {
-        const parsed = JSON.parse(usuario);
-        if (parsed.role === "STUDENT") {
-          totalAlumnos++;
-        }
-      }
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    // 2. Evaluaciones (si existen)
-    let totalEvaluaciones = 0;
-    let sumaPuntajes = 0;
-    let estadoVerde = 0, estadoAmarillo = 0, estadoRojo = 0;
-    let ultimasEvaluaciones: any[] = [];
-    
-    try {
-      const evaluacionesStore = getStore("evaluaciones");
-      for await (const item of evaluacionesStore.list()) {
-        const evaluacion = await evaluacionesStore.get(item.key);
-        if (evaluacion) {
-          const parsed = JSON.parse(evaluacion);
-          totalEvaluaciones++;
-          sumaPuntajes += parsed.score || 0;
-          
-          if (parsed.status === "GREEN") estadoVerde++;
-          else if (parsed.status === "YELLOW") estadoAmarillo++;
-          else estadoRojo++;
-          
-          ultimasEvaluaciones.push({
-            id: parsed.id,
-            studentName: parsed.studentName || "Alumno",
-            score: parsed.score
-          });
-        }
-      }
-      ultimasEvaluaciones = ultimasEvaluaciones.slice(0, 5);
-    } catch (e) {}
+    // Verificar rol del usuario
+    const currentUser = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      select: { role: true }
+    });
 
-    const promedio = totalEvaluaciones > 0 ? (sumaPuntajes / totalEvaluaciones).toFixed(1) : "0.0";
+    if (!currentUser || currentUser.role !== "PSYCHOLOGIST") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
 
-    // 3. Citas
-    let totalCitas = 0;
-    let proximasCitas = 0;
-    try {
-      const citasStore = getStore("citas");
-      for await (const item of citasStore.list()) {
-        const cita = await citasStore.get(item.key);
-        if (cita) {
-          const parsed = JSON.parse(cita);
-          if (parsed.estado !== "CANCELADA") {
-            totalCitas++;
-            const fechaCita = new Date(parsed.fecha);
-            if (fechaCita >= new Date() && fechaCita <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) {
-              proximasCitas++;
-            }
+    // 1. Contar alumnos (usuarios con rol STUDENT)
+    const totalAlumnos = await prisma.user.count({
+      where: { role: "STUDENT" }
+    });
+
+    // 2. Evaluaciones - usando el modelo Evaluation
+    const evaluaciones = await prisma.evaluation.findMany({
+      include: {
+        student: {
+          select: {
+            name: true
           }
         }
+      },
+      orderBy: {
+        createdAt: 'desc'
       }
-    } catch (e) {}
+    });
+
+    const totalEvaluaciones = evaluaciones.length;
+    const sumaPuntajes = evaluaciones.reduce((sum, e) => sum + (e.score || 0), 0);
+    const promedio = totalEvaluaciones > 0 ? (sumaPuntajes / totalEvaluaciones).toFixed(1) : "0.0";
+
+    // Contar por estado
+    const estadoVerde = evaluaciones.filter(e => e.status === "GREEN").length;
+    const estadoAmarillo = evaluaciones.filter(e => e.status === "YELLOW").length;
+    const estadoRojo = evaluaciones.filter(e => e.status === "RED").length;
+
+    // Últimas 5 evaluaciones
+    const ultimasEvaluaciones = evaluaciones.slice(0, 5).map(e => ({
+      id: e.id,
+      studentName: e.student.name || "Alumno",
+      score: e.score
+    }));
+
+    // 3. Citas (no canceladas) - usando Appointment
+    const hoy = new Date();
+    const dentroDe7Dias = new Date();
+    dentroDe7Dias.setDate(hoy.getDate() + 7);
+
+    const citas = await prisma.appointment.findMany({
+      where: {
+        status: { not: "CANCELADA" }
+      }
+    });
+
+    const totalCitas = citas.length;
+    
+    // Citas en los próximos 7 días
+    const proximasCitas = citas.filter(c => {
+      const fechaCita = new Date(c.date);
+      return fechaCita >= hoy && fechaCita <= dentroDe7Dias;
+    }).length;
 
     return NextResponse.json({
       totalAlumnos,
@@ -88,6 +84,7 @@ export async function GET() {
       proximasCitas,
       ultimasEvaluaciones
     });
+
   } catch (error) {
     console.error("Error al obtener estadísticas:", error);
     return NextResponse.json({
